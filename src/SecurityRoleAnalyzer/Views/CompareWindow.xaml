@@ -1,0 +1,58 @@
+<Window x:Class="SecurityRoleAnalyzer.Views.CompareWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
+        xmlns:c="clr-namespace:SecurityRoleAnalyzer.Controls"
+        d:DataContext="{d:DesignInstance vm:CompareViewModel}"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="So sánh Security Role" Width="1200" Height="760" WindowStartupLocation="CenterOwner"
+        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource AppBackgroundBrush}">
+    <Border Style="{StaticResource Card}" Margin="12">
+        <DockPanel>
+            <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Role A" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Roles}" SelectedItem="{Binding RoleA}" DisplayMemberPath="Name" IsTextSearchEnabled="True" />
+                <Button Grid.Column="2" Content="⇄" Command="{Binding SwapCommand}" Margin="8,0" ToolTip="Đổi chỗ" />
+                <TextBlock Grid.Column="3" Text="Role B" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0" />
+                <ComboBox Grid.Column="4" ItemsSource="{Binding Roles}" SelectedItem="{Binding RoleB}" DisplayMemberPath="Name" IsTextSearchEnabled="True" />
+                <StackPanel Grid.Column="5" Orientation="Horizontal" Margin="8,0,0,0">
+                    <Button Content="So sánh" Command="{Binding CompareCommand}" Style="{StaticResource PrimaryButton}" MinWidth="90" />
+                    <Button Content="Xuất Excel" Command="{Binding ExportCommand}" />
+                </StackPanel>
+            </Grid>
+
+            <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Lọc theo entity / privilege..." Width="320"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                <CheckBox Content="Chỉ hiển thị khác biệt" IsChecked="{Binding OnlyDifferences}" />
+            </WrapPanel>
+
+            <TextBlock DockPanel.Dock="Top" Text="{Binding SummaryText}" Style="{StaticResource Muted}" Margin="0,0,0,8" />
+            <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" Height="3" Margin="0,0,0,6"
+                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+
+            <DataGrid ItemsSource="{Binding RowsView}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Entity" Binding="{Binding EntityDisplayName}" Width="200" />
+                    <DataGridTextColumn Header="Logical Name" Binding="{Binding Entity}" Width="180" />
+                    <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Privilege" Binding="{Binding Privilege}" Width="*" />
+                    <c:DepthColumn Header="A" CellPath="DepthA" IsPrivilegeCell="False" Width="40" />
+                    <DataGridTextColumn Header="Mức Role A" Binding="{Binding DepthAText}" Width="130" />
+                    <c:DepthColumn Header="B" CellPath="DepthB" IsPrivilegeCell="False" Width="40" />
+                    <DataGridTextColumn Header="Mức Role B" Binding="{Binding DepthBText}" Width="130" />
+                    <DataGridTextColumn Header="Kết quả" Binding="{Binding Status}" Width="140" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </DockPanel>
+    </Border>
+</Window>

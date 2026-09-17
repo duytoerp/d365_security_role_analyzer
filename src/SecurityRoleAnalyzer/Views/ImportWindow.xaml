@@ -1,0 +1,58 @@
+<Window x:Class="SecurityRoleAnalyzer.Views.ImportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:ImportViewModel}"
+        Title="Import phân quyền từ Excel / CSV" Width="1250" Height="780" WindowStartupLocation="CenterOwner"
+        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource AppBackgroundBrush}">
+    <Grid>
+        <Border Style="{StaticResource Card}" Margin="12">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Style="{StaticResource InfoBanner}">
+                    <TextBlock TextWrapping="Wrap" Foreground="#0B4A85">
+                        <Run FontWeight="SemiBold" Text="Cột file:" /> Loại (User/Team) · Principal (username, email hoặc họ tên / tên team) · Hành động (Gán role, Gỡ role, Thêm vào team, Gỡ khỏi team) · Đối tượng (tên role / tên team).
+                        <LineBreak />
+                        File được kiểm tra trước (không thay đổi gì); chỉ các dòng "Hợp lệ" được thực hiện khi bấm "Thực hiện". Mọi thao tác ghi vào Lịch sử và có thể hoàn tác.
+                    </TextBlock>
+                </Border>
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Content="📄 Tạo file mẫu" Command="{Binding CreateTemplateCommand}" />
+                        <Button Content="📂 Mở file &amp; kiểm tra" Command="{Binding OpenFileCommand}" />
+                        <Button Content="▶ Thực hiện" Command="{Binding ExecuteCommand}" Style="{StaticResource PrimaryButton}" />
+                        <Button Content="⬇ Xuất kết quả" Command="{Binding ExportResultsCommand}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding FilePath}" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis" MaxWidth="420" />
+                        <CheckBox Content="Chỉ dòng lỗi" IsChecked="{Binding OnlyProblems}" />
+                    </StackPanel>
+                </DockPanel>
+                <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding SummaryCards}" Style="{StaticResource SummaryCards}" />
+                <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="0,8,0,0" />
+                <DataGrid ItemsSource="{Binding RowsView}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Dòng" Binding="{Binding RowNumber}" Width="55" />
+                        <DataGridTextColumn Header="Loại" Binding="{Binding PrincipalType}" Width="60" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Principal" Binding="{Binding Principal}" Width="200" />
+                        <DataGridTextColumn Header="Hành động" Binding="{Binding Action}" Width="110" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Đối tượng" Binding="{Binding Target}" Width="180" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Business Unit" Binding="{Binding PrincipalBusinessUnitName}" Width="120" />
+                        <DataGridTextColumn Header="Trạng thái" Binding="{Binding Status}" Width="110" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Ghi chú" Binding="{Binding Message}" Width="*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+
+        <Grid Background="#99F3F5F8" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+            <Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,20" MinWidth="360">
+                <StackPanel>
+                    <TextBlock Text="{Binding BusyText}" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,14,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

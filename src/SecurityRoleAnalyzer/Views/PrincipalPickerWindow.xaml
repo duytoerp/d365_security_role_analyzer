@@ -1,0 +1,30 @@
+<Window x:Class="SecurityRoleAnalyzer.Views.PrincipalPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:SecurityRoleAnalyzer.Controls"
+        Title="Chọn" Width="760" Height="560" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource SurfaceBrush}">
+    <DockPanel Margin="16">
+        <TextBlock x:Name="HeaderText" DockPanel.Dock="Top" Style="{StaticResource SectionTitle}" />
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <Button DockPanel.Dock="Right" Content="Tìm" Click="OnSearch" MinWidth="80" IsDefault="True" />
+            <TextBox x:Name="SearchBox" Style="{StaticResource SearchBox}" Tag="Nhập tên để tìm (Enter)..." />
+        </DockPanel>
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Hủy" IsCancel="True" MinWidth="90" />
+                <Button x:Name="OkButton" Content="Gán role" Click="OnOk" MinWidth="110" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" />
+            </StackPanel>
+            <TextBlock x:Name="InfoText" Style="{StaticResource Muted}" VerticalAlignment="Center"
+                       Text="Tick nhiều dòng để chọn. Role sẽ được gán theo Business Unit của từng user/team." />
+        </DockPanel>
+        <DataGrid x:Name="ResultGrid" SelectionMode="Extended">
+            <DataGrid.Columns>
+                <c:SelectColumn />
+                <DataGridTextColumn Header="Tên" Binding="{Binding Name}" Width="240" />
+                <DataGridTextColumn Header="Chi tiết" Binding="{Binding Detail}" Width="220" />
+                <DataGridTextColumn Header="Business Unit" Binding="{Binding BusinessUnitName}" Width="*" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>

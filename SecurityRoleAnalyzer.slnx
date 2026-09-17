@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SecurityRoleAnalyzer/SecurityRoleAnalyzer.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SecurityRoleAnalyzer.Tests/SecurityRoleAnalyzer.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,111 @@
+<Window x:Class="SecurityRoleAnalyzer.Views.LookupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
+        xmlns:c="clr-namespace:SecurityRoleAnalyzer.Controls"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:LookupViewModel}"
+        Title="Tra cứu ngược: ai có quyền này?" Width="1300" Height="800" WindowStartupLocation="CenterOwner"
+        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource AppBackgroundBrush}">
+    <Grid>
+        <DockPanel Margin="12">
+            <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="4,8,0,0" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="420" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource Card}">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="1. Chọn privilege" Style="{StaticResource SectionTitle}" />
+                        <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Entity, tên privilege (vd: account, prvDelete, Export)..."
+                                 Text="{Binding PrivilegeSearchText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <TextBlock Text="Mức tối thiểu:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ComboBox ItemsSource="{Binding Depths}" SelectedItem="{Binding MinimumDepth}" />
+                        </DockPanel>
+                        <DataGrid ItemsSource="{Binding PrivilegesView}" SelectedItem="{Binding SelectedPrivilege}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Entity / quyền" Binding="{Binding Display}" Width="*" />
+                                <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Privilege" Binding="{Binding Privilege.Name}" Width="170" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource Card}">
+                    <DockPanel>
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="⟳ Tải lại chỉ mục" Command="{Binding LoadCommand}" />
+                                <Button Content="⬇ Xuất Excel" Command="{Binding ExportCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding ResultTitle}" Style="{StaticResource SectionTitle}" TextWrapping="Wrap" Margin="0" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <TabControl>
+                            <TabItem Header="Security Roles">
+                                <DataGrid x:Name="RolesGrid" ItemsSource="{Binding Roles}" ToolTip="Double-click để mở role">
+                                    <DataGrid.InputBindings>
+                                        <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenRoleCommand}" CommandParameter="{Binding CurrentItem, ElementName=RolesGrid}" />
+                                    </DataGrid.InputBindings>
+                                    <DataGrid.Columns>
+                                        <c:DepthColumn Header="" CellPath="Depth" IsPrivilegeCell="False" Width="40" />
+                                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Role" Binding="{Binding Name}" Width="*" />
+                                        <DataGridTextColumn Header="Mức" Binding="{Binding DepthText}" Width="140" />
+                                        <DataGridTextColumn Header="User trực tiếp" Binding="{Binding DirectUserCount}" Width="110" />
+                                        <DataGridTextColumn Header="Team" Binding="{Binding TeamCount}" Width="70" />
+                                        <DataGridTextColumn Header="Managed" Binding="{Binding ManagedText}" Width="100" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </TabItem>
+                            <TabItem Header="Teams">
+                                <DataGrid x:Name="TeamsGrid" ItemsSource="{Binding Teams}" ToolTip="Double-click để mở team">
+                                    <DataGrid.InputBindings>
+                                        <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenPrincipalCommand}" CommandParameter="{Binding CurrentItem, ElementName=TeamsGrid}" />
+                                    </DataGrid.InputBindings>
+                                    <DataGrid.Columns>
+                                        <c:DepthColumn Header="" CellPath="Depth" IsPrivilegeCell="False" Width="40" />
+                                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Team" Binding="{Binding Name}" Width="240" />
+                                        <DataGridTextColumn Header="Loại" Binding="{Binding Detail}" Width="160" />
+                                        <DataGridTextColumn Header="Business Unit" Binding="{Binding BusinessUnitName}" Width="160" />
+                                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Qua role" Binding="{Binding Via}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </TabItem>
+                            <TabItem Header="Users">
+                                <DockPanel>
+                                    <CheckBox DockPanel.Dock="Top" Content="Ẩn user disabled" IsChecked="{Binding HideDisabledUsers}" Margin="0,0,0,8" HorizontalAlignment="Left" />
+                                    <DataGrid x:Name="UsersGrid" ItemsSource="{Binding UsersView}" ToolTip="Double-click để mở user">
+                                        <DataGrid.InputBindings>
+                                            <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenPrincipalCommand}" CommandParameter="{Binding CurrentItem, ElementName=UsersGrid}" />
+                                        </DataGrid.InputBindings>
+                                        <DataGrid.Columns>
+                                            <c:DepthColumn Header="" CellPath="Depth" IsPrivilegeCell="False" Width="40" />
+                                            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Họ tên" Binding="{Binding Name}" Width="200" />
+                                            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Username" Binding="{Binding Detail}" Width="200" />
+                                            <DataGridTextColumn Header="Business Unit" Binding="{Binding BusinessUnitName}" Width="140" />
+                                            <DataGridTextColumn Header="Trạng thái" Binding="{Binding StatusText}" Width="80" />
+                                            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Nguồn quyền" Binding="{Binding Via}" Width="*" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </DockPanel>
+                            </TabItem>
+                        </TabControl>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </DockPanel>
+
+        <Grid Background="#99F3F5F8" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+            <Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,20" MinWidth="360">
+                <StackPanel>
+                    <TextBlock Text="{Binding BusyText}" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,14,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

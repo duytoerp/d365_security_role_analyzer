@@ -1,0 +1,284 @@
+<UserControl x:Class="SecurityRoleAnalyzer.Views.TeamsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
+             xmlns:m="clr-namespace:SecurityRoleAnalyzer.Models"
+             xmlns:c="clr-namespace:SecurityRoleAnalyzer.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:TeamManagerViewModel}"
+             FontFamily="Segoe UI" FontSize="13">
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" MinWidth="220" />
+            <ColumnDefinition Width="10" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Team list -->
+        <Border Style="{StaticResource Card}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Teams" Style="{StaticResource SectionTitle}" />
+                <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Tìm team / business unit..."
+                         Text="{Binding TeamSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                <ComboBox DockPanel.Dock="Top" Margin="0,8,0,0" ItemsSource="{Binding TeamTypeFilters}" SelectedItem="{Binding TeamTypeFilter}" />
+                <DockPanel DockPanel.Dock="Top" Margin="0,8">
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding TeamCountText}" Style="{StaticResource Muted}" VerticalAlignment="Center" />
+                    <CheckBox Content="Chỉ team có role" IsChecked="{Binding OnlyTeamsWithRoles}" Margin="0" />
+                </DockPanel>
+                <ListBox ItemsSource="{Binding TeamsView}" SelectedItem="{Binding SelectedTeam}" BorderThickness="0"
+                         VirtualizingPanel.IsVirtualizing="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="8,6" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="Bd" Padding="{TemplateBinding Padding}" CornerRadius="5" Background="Transparent" Margin="0,1">
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#F0F4F8" />
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#DCEBFA" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type m:TeamInfo}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding ListCaption}" Foreground="{StaticResource MutedTextBrush}" FontSize="11.5" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <GridSplitter Grid.Column="1" Width="10" HorizontalAlignment="Stretch" Background="Transparent" />
+
+        <!-- Team detail -->
+        <Border Grid.Column="2" Style="{StaticResource Card}" Padding="16,12">
+            <Grid>
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Visibility="{Binding HasAnalysis, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                    <TextBlock Text="👥" FontSize="48" HorizontalAlignment="Center" Foreground="#9FB3C8" />
+                    <TextBlock Text="Chọn một team để xem role, thành viên và quyền hiệu lực" FontSize="15"
+                               Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0" />
+                </StackPanel>
+
+                <DockPanel Visibility="{Binding HasAnalysis, Converter={StaticResource BoolToVisibility}}">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                            <Button Content="Mở trong D365" Command="{Binding OpenInBrowserCommand}" />
+                            <Button Content="⟳ Phân tích lại" Command="{Binding ReloadTeamCommand}" />
+                            <Button Content="⬇ Xuất Excel" Command="{Binding ExportCommand}" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Analysis.Team.Name}" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding TeamSubtitle}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <TabControl>
+                        <!-- Overview -->
+                        <TabItem Header="Tổng quan">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <ItemsControl ItemsSource="{Binding SummaryCards}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:SummaryCard}">
+                                                <Border Width="190" Margin="0,0,10,10" Padding="14,10" CornerRadius="8"
+                                                        Background="{StaticResource SubtleBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Title}" Foreground="{StaticResource MutedTextBrush}" />
+                                                        <TextBlock Text="{Binding Value}" FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" />
+                                                        <TextBlock Text="{Binding Caption}" FontSize="11.5" Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <Border Background="#FFF8E1" BorderBrush="#F2D57E" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,10,10"
+                                            Visibility="{Binding HasWarnings, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="{Binding WarningsText}" TextWrapping="Wrap" Foreground="#7A5B00" />
+                                    </Border>
+
+                                    <TextBlock Text="Mô tả" Style="{StaticResource SectionTitle}" Margin="0,6,0,4"
+                                               Visibility="{Binding Analysis.Team.Description.Length, Converter={StaticResource BoolToVisibility}}" />
+                                    <TextBlock Text="{Binding Analysis.Team.Description}" Style="{StaticResource Muted}" Margin="0,0,10,10"
+                                               Visibility="{Binding Analysis.Team.Description.Length, Converter={StaticResource BoolToVisibility}}" />
+
+                                    <TextBlock Text="{Binding FindingsHeader}" Style="{StaticResource SectionTitle}" Margin="0,6,0,8" />
+                                    <ItemsControl ItemsSource="{Binding Analysis.Findings}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type m:AnalysisFinding}">
+                                                <Border Margin="0,0,10,8" Padding="12,8" CornerRadius="6" BorderThickness="4,1,1,1"
+                                                        BorderBrush="{Binding Severity, Converter={StaticResource SeverityBrush}}" Background="White">
+                                                    <StackPanel>
+                                                        <TextBlock>
+                                                            <Run Text="{Binding SeverityText, Mode=OneWay}" FontWeight="Bold"
+                                                                 Foreground="{Binding Severity, Converter={StaticResource SeverityBrush}}" />
+                                                            <Run Text="  " />
+                                                            <Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold" />
+                                                        </TextBlock>
+                                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Muted}" Margin="0,3,0,0" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- Roles of team -->
+                        <TabItem Header="{Binding RolesTabHeader}">
+                            <DockPanel>
+                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="＋ Gán role" Command="{Binding AddRolesCommand}" Style="{StaticResource PrimaryButton}" />
+                                        <Button Content="Gỡ role đã chọn" Command="{Binding RemoveRolesCommand}" Style="{StaticResource DangerButton}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Tìm role..." Width="320"
+                                                 Text="{Binding RoleSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Text="{Binding SelectedRolesText}" Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" Margin="12,0,0,0" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Muted}" Margin="0,8,0,0"
+                                           Text="Double-click một role để mở phân tích chi tiết của role đó. Thành viên team nhận quyền gộp từ tất cả role bên dưới." />
+                                <DataGrid x:Name="TeamRolesGrid" ItemsSource="{Binding RolesView}" SelectionMode="Extended"
+                                          c:GridSelection.Enabled="True" c:GridSelection.SelectedItems="{Binding SelectedRoles, Mode=OneWayToSource}">
+                                    <DataGrid.InputBindings>
+                                        <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenRoleCommand}"
+                                                      CommandParameter="{Binding CurrentItem, ElementName=TeamRolesGrid}" />
+                                    </DataGrid.InputBindings>
+                                    <DataGrid.Columns>
+                                        <c:SelectColumn />
+                                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Security Role" Binding="{Binding Name}" Width="*" />
+                                        <DataGridTextColumn Header="Business Unit" Binding="{Binding BusinessUnitName}" Width="200" />
+                                        <DataGridTextColumn Header="Managed" Binding="{Binding ManagedText}" Width="100" />
+                                        <DataGridTextColumn Header="Entity có quyền" Binding="{Binding GrantedEntityCount}" Width="120" />
+                                        <DataGridTextColumn Header="Quyền khác" Binding="{Binding GrantedMiscCount}" Width="100" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </TabItem>
+
+                        <!-- Members -->
+                        <TabItem Header="{Binding MembersTabHeader}">
+                            <DockPanel>
+                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="＋ Thêm thành viên" Command="{Binding AddMembersCommand}" Style="{StaticResource PrimaryButton}" />
+                                        <Button Content="Gỡ thành viên đã chọn" Command="{Binding RemoveMembersCommand}" Style="{StaticResource DangerButton}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Tìm thành viên / username / business unit..." Width="320"
+                                                 Text="{Binding MemberSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Text="{Binding SelectedMembersText}" Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" Margin="12,0,0,0" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <Border DockPanel.Dock="Top" Background="#EAF3FC" BorderBrush="#B7D4F0" BorderThickness="1" CornerRadius="6" Padding="10,7" Margin="0,0,0,8"
+                                        Visibility="{Binding HasMembersNote, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="{Binding MembersNote}" TextWrapping="Wrap" Foreground="#0B4A85" />
+                                </Border>
+                                <DataGrid x:Name="MembersGrid" ItemsSource="{Binding MembersView}" SelectionMode="Extended" ToolTip="Double-click để mở user"
+                                          c:GridSelection.Enabled="True" c:GridSelection.SelectedItems="{Binding SelectedMembers, Mode=OneWayToSource}">
+                                    <DataGrid.InputBindings>
+                                        <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenMemberCommand}" CommandParameter="{Binding CurrentItem, ElementName=MembersGrid}" />
+                                    </DataGrid.InputBindings>
+                                    <DataGrid.Columns>
+                                        <c:SelectColumn />
+                                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Họ tên" Binding="{Binding FullName}" Width="220" />
+                                        <DataGridTextColumn Header="Username" Binding="{Binding DomainName}" Width="240" />
+                                        <DataGridTextColumn Header="Email" Binding="{Binding Email}" Width="240" />
+                                        <DataGridTextColumn Header="Business Unit" Binding="{Binding BusinessUnitName}" Width="*" />
+                                        <DataGridTextColumn Header="Trạng thái" Binding="{Binding StatusText}" Width="90" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </TabItem>
+
+                        <!-- Effective entity privileges -->
+                        <TabItem Header="{Binding EntityTabHeader}">
+                            <DockPanel>
+                                <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Tìm entity hoặc tên role..." Width="300"
+                                             Text="{Binding EntitySearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                    <CheckBox Content="Chỉ entity có quyền" IsChecked="{Binding OnlyGrantedEntities}" />
+                                    <CheckBox Content="Chỉ entity custom" IsChecked="{Binding OnlyCustomEntities}" />
+                                </WrapPanel>
+                                <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Muted}" Margin="0,8,0,0"
+                                           Text="Quyền hiệu lực = mức cao nhất trong các role của team. Rê chuột lên ô để xem role nào cấp quyền. ○ None  ◔ User  ◑ Business Unit  ◕ Parent: Child BU  ● Organization" />
+                                <DataGrid ItemsSource="{Binding EntityRowsView}" FrozenColumnCount="1">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Entity" Binding="{Binding DisplayName}" Width="200" />
+                                        <c:DepthColumn Header="Create" CellPath="Create" Width="64" />
+                                        <c:DepthColumn Header="Read" CellPath="Read" Width="64" />
+                                        <c:DepthColumn Header="Write" CellPath="Write" Width="64" />
+                                        <c:DepthColumn Header="Delete" CellPath="Delete" Width="64" />
+                                        <c:DepthColumn Header="Append" CellPath="Append" Width="68" />
+                                        <c:DepthColumn Header="Append To" CellPath="AppendTo" Width="80" />
+                                        <c:DepthColumn Header="Assign" CellPath="Assign" Width="64" />
+                                        <c:DepthColumn Header="Share" CellPath="Share" Width="64" />
+                                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Từ role" Binding="{Binding SourcesText}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </TabItem>
+
+                        <!-- Misc privileges -->
+                        <TabItem Header="{Binding MiscTabHeader}">
+                            <DockPanel>
+                                <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Tìm privilege hoặc tên role..." Width="300"
+                                         HorizontalAlignment="Left" Margin="0,0,0,8"
+                                         Text="{Binding MiscSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                <DataGrid ItemsSource="{Binding MiscView}">
+                                    <DataGrid.Columns>
+                                        <c:DepthColumn Header="" CellPath="Depth" IsPrivilegeCell="False" Width="40" />
+                                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Privilege" Binding="{Binding Name}" Width="300" />
+                                        <DataGridTextColumn Header="Mức" Binding="{Binding DepthText}" Width="140" />
+                                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Từ role" Binding="{Binding SourcesText}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </TabItem>
+
+                        <!-- Apps -->
+                        <TabItem Header="{Binding AppsTabHeader}">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Style="{StaticResource Muted}" Margin="0,0,0,8"
+                                           Text="Model-driven App mà thành viên mở được nhờ các role của team." />
+                                <DataGrid ItemsSource="{Binding AppsView}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="App" Binding="{Binding Name}" Width="*" />
+                                        <DataGridTextColumn Header="Unique Name" Binding="{Binding SubType}" Width="260" />
+                                        <DataGridTextColumn Header="Trạng thái" Binding="{Binding State}" Width="100" />
+                                        <DataGridTextColumn Header="Managed" Binding="{Binding ManagedText}" Width="100" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </TabItem>
+                    </TabControl>
+                </DockPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

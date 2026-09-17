@@ -1,0 +1,106 @@
+<Window x:Class="SecurityRoleAnalyzer.Views.BulkPrivilegeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
+        xmlns:c="clr-namespace:SecurityRoleAnalyzer.Controls"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:BulkPrivilegeViewModel}"
+        Title="Áp quyền hàng loạt cho nhiều role" Width="1400" Height="860" WindowStartupLocation="CenterOwner"
+        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource AppBackgroundBrush}">
+    <Grid>
+        <DockPanel Margin="12">
+            <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="4,8,0,0" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="360" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="340" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource Card}">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="1. Chọn entity" Style="{StaticResource SectionTitle}" />
+                        <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Tìm entity..." Margin="0,0,0,8"
+                                 Text="{Binding EntitySearchText, UpdateSourceTrigger=PropertyChanged}" />
+                        <DataGrid ItemsSource="{Binding EntitiesView}" SelectionMode="Extended"
+                                  c:GridSelection.Enabled="True" c:GridSelection.SelectedItems="{Binding SelectedEntities, Mode=OneWayToSource}">
+                            <DataGrid.Columns>
+                                <c:SelectColumn />
+                                <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Entity" Binding="{Binding Display}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource Card}">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="2. Chọn quyền &amp; mức" Style="{StaticResource SectionTitle}" />
+                        <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="0,0,0,10">
+                            <CheckBox Content="Create" IsChecked="{Binding Create}" Margin="0,4" />
+                            <CheckBox Content="Read" IsChecked="{Binding Read}" Margin="0,4" />
+                            <CheckBox Content="Write" IsChecked="{Binding Write}" Margin="0,4" />
+                            <CheckBox Content="Delete" IsChecked="{Binding Delete}" Margin="0,4" />
+                            <CheckBox Content="Append" IsChecked="{Binding Append}" Margin="0,4" />
+                            <CheckBox Content="Append To" IsChecked="{Binding AppendTo}" Margin="0,4" />
+                            <CheckBox Content="Assign" IsChecked="{Binding Assign}" Margin="0,4" />
+                            <CheckBox Content="Share" IsChecked="{Binding Share}" Margin="0,4" />
+                        </UniformGrid>
+                        <TextBlock DockPanel.Dock="Top" Text="Đặt mức (None = gỡ quyền)" Margin="0,0,0,4" />
+                        <ComboBox DockPanel.Dock="Top" ItemsSource="{Binding Depths}" SelectedItem="{Binding TargetDepth}" Margin="0,0,0,8" />
+                        <CheckBox DockPanel.Dock="Top" Content="Chỉ nâng mức (không hạ quyền đang cao hơn)" IsChecked="{Binding OnlyRaise}" Margin="0,0,0,14" />
+                        <TextBlock DockPanel.Dock="Top" Text="3. Chọn role" Style="{StaticResource SectionTitle}" />
+                        <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Tìm role..." Margin="0,0,0,6"
+                                 Text="{Binding RoleSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                        <CheckBox DockPanel.Dock="Top" Content="Ẩn role managed" IsChecked="{Binding HideManagedRoles}" Margin="0,0,0,6" />
+                        <DataGrid ItemsSource="{Binding RolesView}" SelectionMode="Extended"
+                                  c:GridSelection.Enabled="True" c:GridSelection.SelectedItems="{Binding SelectedRoles, Mode=OneWayToSource}">
+                            <DataGrid.Columns>
+                                <c:SelectColumn />
+                                <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Role" Binding="{Binding Name}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+
+                <Border Grid.Column="4" Style="{StaticResource Card}">
+                    <DockPanel>
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="4. Xem trước" Command="{Binding PreviewCommand}" />
+                                <Button Content="5. Áp dụng" Command="{Binding ApplyCommand}" Style="{StaticResource PrimaryButton}" />
+                            </StackPanel>
+                            <TextBlock Text="Thay đổi sẽ áp dụng" Style="{StaticResource SectionTitle}" Margin="0" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <Border DockPanel.Dock="Top" Style="{StaticResource InfoBanner}">
+                            <TextBlock TextWrapping="Wrap" Foreground="#0B4A85"
+                                       Text="Privilege của mỗi role được sao lưu tự động trước khi sửa. Có thể hoàn tác trong Công cụ → Lịch sử thao tác, hoặc khôi phục từ bản sao lưu." />
+                        </Border>
+                        <DataGrid ItemsSource="{Binding Preview}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Role" Binding="{Binding RoleName}" Width="*" />
+                                <DataGridTextColumn Header="Entity" Binding="{Binding Entity}" Width="150" />
+                                <DataGridTextColumn Header="Quyền" Binding="{Binding Right}" Width="80" />
+                                <c:DepthColumn Header="Hiện tại" CellPath="Current" IsPrivilegeCell="False" Width="70" />
+                                <c:DepthColumn Header="Mới" CellPath="Target" IsPrivilegeCell="False" Width="60" />
+                                <DataGridTextColumn Header="Mức mới" Binding="{Binding TargetText}" Width="120" />
+                                <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Ghi chú" Binding="{Binding Note}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </DockPanel>
+
+        <Grid Background="#99F3F5F8" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+            <Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,20" MinWidth="360">
+                <StackPanel>
+                    <TextBlock Text="{Binding BusyText}" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,14,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

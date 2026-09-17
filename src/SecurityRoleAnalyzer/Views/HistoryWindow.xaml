@@ -1,0 +1,52 @@
+<Window x:Class="SecurityRoleAnalyzer.Views.HistoryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:HistoryViewModel}"
+        Title="Lịch sử thao tác" Width="1300" Height="760" WindowStartupLocation="CenterOwner"
+        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource AppBackgroundBrush}">
+    <Grid>
+        <Border Style="{StaticResource Card}" Margin="12">
+            <DockPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Content="⟳ Tải lại" Command="{Binding LoadCommand}" />
+                        <Button Content="📂 Mở thư mục dữ liệu" Command="{Binding OpenFolderCommand}" />
+                        <Button Content="↶ Hoàn tác mục đã chọn" Command="{Binding UndoCommand}" Style="{StaticResource PrimaryButton}" />
+                    </StackPanel>
+                    <WrapPanel VerticalAlignment="Center">
+                        <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Tìm thao tác, đối tượng, người thực hiện..." Width="320"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                        <CheckBox Content="{Binding CurrentEnvironment}" ContentStringFormat="Chỉ môi trường: {0}" IsChecked="{Binding OnlyCurrentEnvironment}" />
+                        <CheckBox Content="Chỉ thao tác lỗi" IsChecked="{Binding OnlyErrors}" />
+                    </WrapPanel>
+                </DockPanel>
+                <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="0,8,0,0" />
+                <DataGrid ItemsSource="{Binding EntriesView}" SelectedItem="{Binding SelectedEntry}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Thời gian" Binding="{Binding Time, StringFormat=dd/MM/yyyy HH:mm:ss}" Width="140" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Thao tác" Binding="{Binding Action}" Width="190" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Đối tượng" Binding="{Binding Target}" Width="200" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Chi tiết" Binding="{Binding Detail}" Width="*" />
+                        <DataGridTextColumn Header="Kết quả" Binding="{Binding ResultText}" Width="170" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Lỗi" Binding="{Binding Error}" Width="160" />
+                        <DataGridCheckBoxColumn Header="Hoàn tác được" Binding="{Binding CanUndo, Mode=OneWay}" Width="100" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Người thực hiện" Binding="{Binding Operator}" Width="130" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Môi trường" Binding="{Binding Environment}" Width="160" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+
+        <Grid Background="#99F3F5F8" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+            <Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,20" MinWidth="360">
+                <StackPanel>
+                    <TextBlock Text="{Binding BusyText}" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,14,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
