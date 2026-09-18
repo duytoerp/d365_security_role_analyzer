@@ -71,6 +71,8 @@
                                     <MenuItem Header="🔎 Tra cứu ngược: ai có quyền X?" Command="{Binding OpenLookupCommand}" />
                                     <MenuItem Header="📋 Rà soát quyền toàn hệ thống (User × Role)" Command="{Binding OpenAccessReviewCommand}" />
                                     <MenuItem Header="⇄ So sánh 2 role" Command="{Binding CompareCommand}" />
+                                    <MenuItem Header="⧉ Tìm role trùng lặp (gộp / dọn bớt)" Command="{Binding OpenRoleOverlapCommand}" />
+                                    <MenuItem Header="🔍 Audit log phân quyền (từ D365)" Command="{Binding OpenAuditCommand}" />
                                     <Separator />
                                     <MenuItem Header="⚙ Áp quyền hàng loạt cho nhiều role" Command="{Binding OpenBulkPrivilegesCommand}" />
                                     <MenuItem Header="♻ Khôi phục privilege từ bản sao lưu" Command="{Binding RestoreBackupCommand}" />
@@ -87,6 +89,10 @@
                                                   IsChecked="{Binding IsThemeLight, Mode=OneWay}" IsCheckable="False" />
                                         <MenuItem Header="Tối" Command="{Binding SetThemeCommand}" CommandParameter="Dark"
                                                   IsChecked="{Binding IsThemeDark, Mode=OneWay}" IsCheckable="False" />
+                                    </MenuItem>
+                                    <MenuItem Header="📐 Bộ quy tắc rà soát">
+                                        <MenuItem Header="Mở policy.json để chỉnh sửa" Command="{Binding EditPolicyCommand}" />
+                                        <MenuItem Header="Nạp lại bộ quy tắc" Command="{Binding ReloadPolicyCommand}" />
                                     </MenuItem>
                                     <MenuItem Header="🧾 Mở file log lỗi" Command="{Binding OpenErrorLogCommand}" />
                                     <MenuItem Header="⌨ Phím tắt" Command="{Binding ShowShortcutsCommand}" InputGestureText="F1" />
@@ -179,7 +185,21 @@
                         <DockPanel Visibility="{Binding HasAnalysis, Converter={StaticResource BoolToVisibility}}">
                             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-                                    <Button Content="⧉ Sao chép role" Command="{Binding CopyRoleCommand}" />
+                                    <Button x:Name="RoleActionsButton" Content="⚙ Role ▾" Click="OnRoleActionsClick"
+                                            ToolTip="Tạo, đổi tên, xóa, xuất/nhập định nghĩa role">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="＋ Tạo role mới (rỗng)" Command="{Binding NewRoleCommand}" />
+                                                <MenuItem Header="⧉ Sao chép role này" Command="{Binding CopyRoleCommand}" />
+                                                <MenuItem Header="✎ Đổi tên role" Command="{Binding RenameRoleCommand}" />
+                                                <Separator />
+                                                <MenuItem Header="⬆ Xuất định nghĩa role ra file" Command="{Binding ExportRoleDefinitionCommand}" />
+                                                <MenuItem Header="⬇ Nhập định nghĩa role từ file" Command="{Binding ImportRoleDefinitionCommand}" />
+                                                <Separator />
+                                                <MenuItem Header="🗑 Xóa role" Command="{Binding DeleteRoleCommand}" />
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                    </Button>
                                     <Button Content="Mở trong D365" Command="{Binding OpenInBrowserCommand}" />
                                     <Button Content="⟳ Phân tích lại" Command="{Binding ReloadRoleCommand}" />
                                     <Button Content="⬇ Xuất Excel" Command="{Binding ExportCommand}" />

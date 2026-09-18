@@ -538,6 +538,7 @@ public sealed partial class SnapshotViewModel(MainViewModel host) : ToolViewMode
     [ObservableProperty] private string _categoryFilter = AllText;
     [ObservableProperty] private string _changeFilter = AllText;
     [ObservableProperty] private string _searchText = "";
+    [ObservableProperty] private IList? _selectedRows;
     private List<SnapshotDiffRow> _rows = [];
 
     public IReadOnlyList<string> Categories { get; } =
@@ -659,6 +660,54 @@ public sealed partial class SnapshotViewModel(MainViewModel host) : ToolViewMode
         }
         StatusText = $"{_rows.Count} khác biệt giữa \"{SnapshotA.Title}\" và \"{SnapshotB.Title}\".";
         ExportCommand.NotifyCanExecuteChanged();
+        ApplyCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(ApplyHint));
+    }
+
+    /// <summary>Số dòng áp được sang môi trường đang kết nối (chỉ privilege của role).</summary>
+    public int ApplicableCount => _rows.Count(r => r.CanApply);
+
+    public string ApplyHint => _rows.Count == 0
+        ? ""
+        : $"Áp sang môi trường đang kết nối: {ApplicableCount}/{_rows.Count} khác biệt (privilege của role). "
+          + "Gán role cho user/team và thành viên team dùng công cụ Import.";
+
+    private bool CanApply => _rows.Any(r => r.CanApply) && Host.Service is not null;
+
+    /// <summary>Đưa privilege của role trên môi trường đang kết nối về đúng như snapshot B.</summary>
+    [RelayCommand(CanExecute = nameof(CanApply))]
+    private async Task ApplyAsync()
+    {
+        if (SnapshotB is not { } source || Host.Service is not { } service)
+            return;
+
+        // Không tick dòng nào nghĩa là áp toàn bộ khác biệt áp được.
+        var selected = SelectedRows?.OfType<SnapshotDiffRow>().Where(r => r.CanApply).ToList() ?? [];
+        if (selected.Count == 0)
+            selected = _rows.Where(r => r.CanApply).ToList();
+
+        var roleCount = selected.Select(r => r.Item).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+        if (!Dialogs.Confirm(
+                $"Áp {selected.Count} thay đổi privilege lên {roleCount} role của môi trường \"{service.EnvironmentKey}\","
+                + $"\nlấy theo bản B \"{source.Title}\"?"
+                + "\n\nPrivilege của mỗi role được sao lưu trước khi sửa (hoàn tác được trong Lịch sử thao tác)."))
+        {
+            return;
+        }
+
+        await RunCancellableAsync("Đang áp diff snapshot...", async (ct, progress) =>
+        {
+            var result = await SnapshotApplyService.ApplyAsync(service, source, selected, progress, ct);
+            StatusText = result.Summary;
+
+            if (result.Errors.Count > 0 || result.Skipped.Count > 0)
+            {
+                var detail = result.Errors.Count > 0 ? "Lỗi:\n" + string.Join("\n", result.Errors.Take(20)) : "";
+                if (result.Skipped.Count > 0)
+                    detail += (detail.Length > 0 ? "\n\n" : "") + "Bỏ qua:\n" + string.Join("\n", result.Skipped.Take(20));
+                Dialogs.ShowWarning(detail);
+            }
+        });
     }
 
     private bool CanExport => _rows.Count > 0;
@@ -853,6 +902,145 @@ public sealed partial class HistoryViewModel(MainViewModel host) : ToolViewModel
     [RelayCommand]
     private static void OpenFolder() =>
         Process.Start(new ProcessStartInfo(ConnectionProfileStore.AppDataFolder) { UseShellExecute = true });
+}
+
+#endregion
+
+#region Role trùng lặp
+
+/// <summary>Tìm các cặp role có privilege chồng lấn nhiều để gộp hoặc dọn bớt.</summary>
+public sealed partial class RoleOverlapViewModel(MainViewModel host) : ToolViewModelBase(host)
+{
+    [ObservableProperty] private ICollectionView? _rowsView;
+    [ObservableProperty] private string _searchText = "";
+    [ObservableProperty] private bool _onlySubsets;
+
+    /// <summary>Ngưỡng trùng lặp tối thiểu, phần trăm.</summary>
+    [ObservableProperty] private int _minimumSimilarity = 90;
+
+    private List<RoleOverlapRow> _rows = [];
+
+    public ObservableCollection<SummaryCard> SummaryCards { get; } = [];
+
+    public IReadOnlyList<int> SimilarityOptions { get; } = [100, 95, 90, 80, 70, 60, 50];
+
+    partial void OnSearchTextChanged(string value) => RowsView?.Refresh();
+    partial void OnOnlySubsetsChanged(bool value) => RowsView?.Refresh();
+
+    [RelayCommand]
+    public async Task LoadAsync()
+    {
+        await RunAsync("Đang so sánh privilege của tất cả role...", async () =>
+        {
+            var service = RequireService();
+            var index = await service.GetAccessIndexAsync(Progress);
+            _rows = RoleOverlapAnalyzer.Find(index, MinimumSimilarity / 100.0);
+
+            RowsView = new ListCollectionView(_rows)
+            {
+                Filter = o => o is RoleOverlapRow r
+                              && (!OnlySubsets || r.IsSubset)
+                              && (MainViewModel.Contains(r.NameA, SearchText) || MainViewModel.Contains(r.NameB, SearchText)),
+            };
+
+            SummaryCards.Clear();
+            SummaryCards.Add(new SummaryCard("Cặp trùng lặp", _rows.Count.ToString(), $"từ {MinimumSimilarity}% trở lên"));
+            SummaryCards.Add(new SummaryCard("Giống hệt nhau", _rows.Count(r => r.Similarity >= 1).ToString(), "nên giữ một role"));
+            SummaryCards.Add(new SummaryCard("Chứa trọn nhau", _rows.Count(r => r.IsSubset).ToString(), "role nhỏ có thể bỏ"));
+            SummaryCards.Add(new SummaryCard("Role đã so sánh", index.Roles.Count.ToString(), "có ít nhất 1 privilege"));
+
+            StatusText = _rows.Count == 0
+                ? $"Không có cặp role nào trùng nhau từ {MinimumSimilarity}% trở lên."
+                : $"{_rows.Count} cặp role trùng nhau từ {MinimumSimilarity}% trở lên.";
+            ExportCommand.NotifyCanExecuteChanged();
+        });
+    }
+
+    [RelayCommand]
+    private void OpenRole(object? row)
+    {
+        if (row is RoleOverlapRow overlap)
+            Host.OpenRole(overlap.RoleA.Id);
+    }
+
+    private bool CanExport => _rows.Count > 0;
+
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private void Export() =>
+        Host.ExportWorkbook("RoleTrungLap", wb => ExcelExporter.AddSheet(wb, "Role trung lap", _rows,
+            new ExportColumn<RoleOverlapRow>("Role A", r => r.NameA, 40),
+            new ExportColumn<RoleOverlapRow>("Role B", r => r.NameB, 40),
+            new ExportColumn<RoleOverlapRow>("Trùng nhau", r => r.SimilarityText),
+            new ExportColumn<RoleOverlapRow>("Privilege chung", r => r.SharedCount),
+            new ExportColumn<RoleOverlapRow>("Chỉ có ở A", r => r.OnlyInA),
+            new ExportColumn<RoleOverlapRow>("Chỉ có ở B", r => r.OnlyInB),
+            new ExportColumn<RoleOverlapRow>("User của A", r => r.UsersA),
+            new ExportColumn<RoleOverlapRow>("User của B", r => r.UsersB),
+            new ExportColumn<RoleOverlapRow>("Gợi ý", r => r.Suggestion, 60)));
+}
+
+#endregion
+
+#region Audit log của Dataverse
+
+/// <summary>Xem thay đổi phân quyền lấy từ audit log của chính Dataverse.</summary>
+public sealed partial class AuditViewModel(MainViewModel host) : ToolViewModelBase(host)
+{
+    [ObservableProperty] private ICollectionView? _entriesView;
+    [ObservableProperty] private string _searchText = "";
+    [ObservableProperty] private int _days = 30;
+    [ObservableProperty] private string _notice = "";
+
+    private List<AuditEntry> _entries = [];
+
+    public IReadOnlyList<int> DayOptions { get; } = [7, 30, 90, 180];
+
+    partial void OnSearchTextChanged(string value) => EntriesView?.Refresh();
+
+    [RelayCommand]
+    public async Task LoadAsync()
+    {
+        await RunAsync($"Đang đọc audit log {Days} ngày gần nhất...", async () =>
+        {
+            var service = RequireService();
+
+            if (!await service.IsAuditEnabledAsync())
+            {
+                Notice = "⚠ Môi trường này chưa bật Auditing, nên audit log không có dữ liệu. "
+                         + "Bật trong Power Platform admin center → Settings → Auditing.";
+                _entries = [];
+            }
+            else
+            {
+                Notice = "";
+                _entries = await service.GetSecurityAuditAsync(Days);
+            }
+
+            EntriesView = new ListCollectionView(_entries)
+            {
+                Filter = o => o is AuditEntry e
+                              && (MainViewModel.Contains(e.TargetName, SearchText)
+                                  || MainViewModel.Contains(e.UserName, SearchText)
+                                  || MainViewModel.Contains(e.Action, SearchText)
+                                  || MainViewModel.Contains(e.EntityName, SearchText)),
+            };
+
+            StatusText = $"{_entries.Count} thay đổi trong {Days} ngày gần nhất"
+                         + (_entries.Count > 0 ? $" (mới nhất: {_entries[0].TimeText})." : ".");
+            ExportCommand.NotifyCanExecuteChanged();
+        });
+    }
+
+    private bool CanExport => _entries.Count > 0;
+
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private void Export() =>
+        Host.ExportWorkbook("AuditPhanQuyen", wb => ExcelExporter.AddSheet(wb, "Audit", _entries,
+            new ExportColumn<AuditEntry>("Thời gian", e => e.TimeText, 20),
+            new ExportColumn<AuditEntry>("Thao tác", e => e.Action, 25),
+            new ExportColumn<AuditEntry>("Bảng", e => e.EntityName, 22),
+            new ExportColumn<AuditEntry>("Đối tượng", e => e.TargetName, 40),
+            new ExportColumn<AuditEntry>("Người thực hiện", e => e.UserName, 30)));
 }
 
 #endregion

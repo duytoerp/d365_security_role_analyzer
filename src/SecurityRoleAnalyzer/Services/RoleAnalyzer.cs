@@ -5,32 +5,6 @@ namespace SecurityRoleAnalyzer.Services;
 /// <summary>Tổng hợp dữ liệu từ Dataverse thành kết quả phân tích cho một security role.</summary>
 public sealed class RoleAnalyzer(DataverseService service)
 {
-    private static readonly string[] SensitiveEntities =
-    [
-        "role", "systemuser", "team", "businessunit", "fieldsecurityprofile", "fieldpermission",
-        "pluginassembly", "plugintype", "sdkmessageprocessingstep", "sdkmessageprocessingstepimage",
-        "solution", "workflow", "customapi", "environmentvariablevalue", "connectionreference",
-        "organization", "audit", "position", "hierarchysecurityconfiguration",
-    ];
-
-    private static readonly Dictionary<string, string> SensitiveMiscPrivileges = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["prvBulkDelete"] = "Xóa hàng loạt dữ liệu (Bulk Delete)",
-        ["prvExportToExcel"] = "Xuất dữ liệu ra Excel",
-        ["prvPublishCustomization"] = "Publish customization",
-        ["prvImportCustomization"] = "Import solution / customization",
-        ["prvExportCustomization"] = "Export solution / customization",
-        ["prvActOnBehalfOfAnotherUser"] = "Impersonate (thực thi thay user khác)",
-        ["prvBypassCustomPlugins"] = "Bỏ qua plugin tùy chỉnh",
-        ["prvBypassCustomPluginExecution"] = "Bỏ qua thực thi plugin tùy chỉnh",
-        ["prvBypassCustomBusinessLogic"] = "Bỏ qua business logic tùy chỉnh",
-        ["prvDeleteAuditPartitions"] = "Xóa lịch sử audit",
-        ["prvDeleteRecordChangeHistory"] = "Xóa lịch sử thay đổi bản ghi",
-        ["prvReadAuditSummary"] = "Xem audit summary",
-        ["prvReassignAll"] = "Chuyển toàn bộ bản ghi sang user khác",
-        ["prvDisableBusinessUnit"] = "Vô hiệu hóa Business Unit",
-    };
-
     public async Task<RoleAnalysis> AnalyzeAsync(SecurityRoleInfo role, IProgress<string>? progress, CancellationToken ct)
     {
         var warnings = new List<string>();
@@ -330,12 +304,17 @@ public sealed class RoleAnalyzer(DataverseService service)
 
     /// <summary>Các phát hiện rủi ro dựa trên privilege (dùng chung cho role và quyền hiệu lực của team).</summary>
     public static IEnumerable<AnalysisFinding> BuildPrivilegeFindings(
-        IEnumerable<EntityPrivilegeRow> entityRows, IEnumerable<MiscPrivilegeRow> miscPrivileges)
+        IEnumerable<EntityPrivilegeRow> entityRows, IEnumerable<MiscPrivilegeRow> miscPrivileges) =>
+        BuildPrivilegeFindings(entityRows, miscPrivileges, SecurityPolicy.Current);
+
+    /// <summary>Phát hiện rủi ro theo một bộ quy tắc cụ thể (dùng cho test và cho policy.json tùy chỉnh).</summary>
+    public static IEnumerable<AnalysisFinding> BuildPrivilegeFindings(
+        IEnumerable<EntityPrivilegeRow> entityRows, IEnumerable<MiscPrivilegeRow> miscPrivileges, SecurityPolicy policy)
     {
         var granted = entityRows.Where(r => r.HasAnyPrivilege).ToList();
 
         var sensitive = granted
-            .Where(r => SensitiveEntities.Contains(r.LogicalName, StringComparer.OrdinalIgnoreCase))
+            .Where(r => policy.IsSensitiveEntity(r.LogicalName))
             .Where(r => r.Create.Depth > 0 || r.Write.Depth > 0 || r.Delete.Depth > 0 || r.Assign.Depth > 0)
             .ToList();
         if (sensitive.Count > 0)
@@ -348,17 +327,13 @@ public sealed class RoleAnalyzer(DataverseService service)
             };
         }
 
-        foreach (var misc in miscPrivileges.Where(m => m.IsGranted && SensitiveMiscPrivileges.ContainsKey(m.Name)))
+        foreach (var misc in miscPrivileges.Where(m => m.IsGranted && policy.SensitivePrivileges.ContainsKey(m.Name)))
         {
             yield return new AnalysisFinding
             {
-                Severity = misc.Name.StartsWith("prvBypass", StringComparison.OrdinalIgnoreCase)
-                           || misc.Name.StartsWith("prvDelete", StringComparison.OrdinalIgnoreCase)
-                           || misc.Name.Equals("prvActOnBehalfOfAnotherUser", StringComparison.OrdinalIgnoreCase)
-                    ? FindingSeverity.High
-                    : FindingSeverity.Medium,
+                Severity = policy.SeverityOf(misc.Name),
                 Title = $"Privilege nhạy cảm: {misc.Name}",
-                Detail = $"{SensitiveMiscPrivileges[misc.Name]} – mức {misc.Depth.ToText()}",
+                Detail = $"{policy.SensitivePrivileges[misc.Name]} – mức {misc.Depth.ToText()}",
             };
         }
 
@@ -367,14 +342,14 @@ public sealed class RoleAnalyzer(DataverseService service)
         {
             yield return new AnalysisFinding
             {
-                Severity = orgDelete.Count > 20 ? FindingSeverity.High : FindingSeverity.Medium,
+                Severity = orgDelete.Count > policy.OrgDeleteHighThreshold ? FindingSeverity.High : FindingSeverity.Medium,
                 Title = $"Delete mức Organization trên {orgDelete.Count} entity",
                 Detail = Names(orgDelete.Select(r => r.DisplayName)),
             };
         }
 
         var orgWrite = granted.Count(r => r.Write.Depth == PrivilegeDepth.Organization);
-        if (orgWrite > 50)
+        if (orgWrite > policy.OrgWriteThreshold)
         {
             yield return new AnalysisFinding
             {
@@ -385,7 +360,7 @@ public sealed class RoleAnalyzer(DataverseService service)
         }
 
         var orgAssignShare = granted.Count(r => r.Assign.Depth == PrivilegeDepth.Organization || r.Share.Depth == PrivilegeDepth.Organization);
-        if (orgAssignShare > 30)
+        if (orgAssignShare > policy.OrgAssignShareThreshold)
         {
             yield return new AnalysisFinding
             {

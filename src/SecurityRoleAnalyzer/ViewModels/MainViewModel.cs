@@ -273,7 +273,8 @@ public sealed partial class MainViewModel : ObservableObject
     public bool HasWarnings => Analysis?.Warnings.Count > 0;
     public string RoleSubtitle => Analysis is null
         ? ""
-        : $"Business Unit: {Analysis.Role.BusinessUnitName}  ·  {Analysis.Role.ManagedText}  ·  Sửa lần cuối: {Analysis.Role.ModifiedOn:dd/MM/yyyy HH:mm}  ·  {Analysis.RoleCopies.Count} bản sao theo BU  ·  Id: {Analysis.Role.Id}";
+        : $"Business Unit: {Analysis.Role.BusinessUnitName}  ·  {Analysis.Role.ManagedText}  ·  Kế thừa: {Analysis.Role.InheritanceText}"
+          + $"  ·  Sửa lần cuối: {Analysis.Role.ModifiedOn:dd/MM/yyyy HH:mm}  ·  {Analysis.RoleCopies.Count} bản sao theo BU  ·  Id: {Analysis.Role.Id}";
 
     public IReadOnlyList<string> ComponentCategories { get; } = [AllCategories, .. ComponentCategory.All];
 

@@ -44,6 +44,28 @@ public sealed class SnapshotDiffRow
     public string Detail { get; init; } = "";
     public string Before { get; init; } = "";
     public string After { get; init; } = "";
+
+    /// <summary>Mức quyền ở bản B, dùng khi áp diff (chỉ có với dòng privilege).</summary>
+    public PrivilegeDepth TargetDepth { get; init; }
+
+    /// <summary>Áp được sang môi trường khác hay không; hiện chỉ hỗ trợ privilege của role.</summary>
+    public bool CanApply { get; init; }
+}
+
+/// <summary>Kết quả áp diff snapshot vào môi trường đang kết nối.</summary>
+public sealed class SnapshotApplyResult
+{
+    public int RolesUpdated { get; set; }
+    public int RolesCreated { get; set; }
+    public int PrivilegesApplied { get; set; }
+    public List<string> Errors { get; set; } = [];
+    public List<string> Skipped { get; set; } = [];
+
+    public string Summary =>
+        $"Đã áp {PrivilegesApplied} privilege trên {RolesUpdated} role"
+        + (RolesCreated > 0 ? $" (tạo mới {RolesCreated} role)" : "")
+        + (Skipped.Count > 0 ? $", bỏ qua {Skipped.Count}" : "")
+        + (Errors.Count > 0 ? $", {Errors.Count} lỗi" : "") + ".";
 }
 
 #endregion
@@ -177,6 +199,65 @@ public sealed class PrivilegeBackupItem
     public Guid PrivilegeId { get; set; }
     public string Name { get; set; } = "";
     public PrivilegeDepth Depth { get; set; }
+}
+
+#endregion
+
+#region Audit log của Dataverse
+
+/// <summary>Một dòng trong audit log của Dataverse liên quan tới phân quyền.</summary>
+public sealed class AuditEntry
+{
+    public Guid Id { get; init; }
+    public DateTime CreatedOn { get; init; }
+    public string Action { get; init; } = "";
+    public string EntityName { get; init; } = "";
+    public string TargetName { get; init; } = "";
+    public Guid TargetId { get; init; }
+    public string UserName { get; init; } = "";
+
+    public string TimeText => CreatedOn.ToString("dd/MM/yyyy HH:mm");
+}
+
+#endregion
+
+#region Định nghĩa role (xuất / nhập giữa môi trường)
+
+/// <summary>
+/// Định nghĩa đầy đủ của một role để mang sang môi trường khác: privilege, app được thêm vào,
+/// field security profile. Privilege khớp theo tên (Id khác nhau giữa các môi trường).
+/// </summary>
+public sealed class RoleDefinition
+{
+    public string Name { get; set; } = "";
+    public string SourceEnvironment { get; set; } = "";
+    public Guid SourceRoleId { get; set; }
+    public string BusinessUnitName { get; set; } = "";
+    public bool IsInherited { get; set; } = true;
+    public DateTime ExportedOn { get; set; } = DateTime.Now;
+    public List<PrivilegeBackupItem> Privileges { get; set; } = [];
+    /// <summary>Unique name của Model-driven App có role này.</summary>
+    public List<string> Apps { get; set; } = [];
+    /// <summary>Tên Field Security Profile (chỉ để tham khảo; profile gán cho user/team, không gán cho role).</summary>
+    public List<string> Notes { get; set; } = [];
+
+    public int GrantedCount => Privileges.Count(p => p.Depth > PrivilegeDepth.None);
+}
+
+/// <summary>Kết quả áp một định nghĩa role vào môi trường hiện tại.</summary>
+public sealed class RoleImportResult
+{
+    public Guid RoleId { get; set; }
+    public bool Created { get; set; }
+    public int PrivilegesApplied { get; set; }
+    public List<string> MissingPrivileges { get; set; } = [];
+    public List<string> MissingApps { get; set; } = [];
+    public int AppsLinked { get; set; }
+
+    public string Summary =>
+        $"{(Created ? "Đã tạo role mới" : "Đã cập nhật role")}: {PrivilegesApplied} privilege, {AppsLinked} app"
+        + (MissingPrivileges.Count > 0 ? $", {MissingPrivileges.Count} privilege không có trên môi trường này" : "")
+        + (MissingApps.Count > 0 ? $", {MissingApps.Count} app không tìm thấy" : "");
 }
 
 #endregion

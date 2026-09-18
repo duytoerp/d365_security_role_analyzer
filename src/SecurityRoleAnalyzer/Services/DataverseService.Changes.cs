@@ -311,6 +311,74 @@ public sealed partial class DataverseService
         return newRoleId;
     }
 
+    /// <summary>Tạo role mới, chưa có privilege nào.</summary>
+    public async Task<Guid> CreateRoleAsync(string name, Guid businessUnitId, string businessUnitName,
+        bool inherited = true, CancellationToken ct = default)
+    {
+        var newRoleId = Guid.Empty;
+        await LoggedAsync(
+            "Tạo role",
+            $"Role: {name}",
+            $"Business Unit: {businessUnitName}",
+            null,
+            null,
+            async () =>
+            {
+                var role = new Entity("role")
+                {
+                    ["name"] = name,
+                    ["businessunitid"] = new EntityReference("businessunit", businessUnitId),
+                    ["isinherited"] = new OptionSetValue(inherited ? 1 : 0),
+                };
+                newRoleId = await _client.CreateAsync(role, ct);
+            });
+
+        // Ghi thêm mục hoàn tác (xóa role vừa tạo) sau khi đã biết Id.
+        ActionLogStore.Append(new ActionLogEntry
+        {
+            Environment = EnvironmentKey,
+            Operator = CurrentUserName,
+            Action = "Tạo role",
+            Target = $"Role: {name}",
+            Detail = $"Id: {newRoleId}",
+            Success = true,
+            Undo = new UndoInfo { Kind = UndoKind.DeleteRole, RecordId = newRoleId },
+        });
+        return newRoleId;
+    }
+
+    /// <summary>
+    /// Đổi tên và/hoặc chế độ kế thừa quyền của role. Dataverse tự đồng bộ thay đổi này
+    /// xuống các bản sao theo Business Unit.
+    /// </summary>
+    public Task UpdateRoleAsync(SecurityRoleInfo role, string newName, bool inherited, CancellationToken ct = default)
+    {
+        var changes = new List<string>();
+        var entity = new Entity("role", role.Id);
+
+        if (!string.Equals(role.Name, newName, StringComparison.Ordinal))
+        {
+            entity["name"] = newName;
+            changes.Add($"tên: \"{role.Name}\" → \"{newName}\"");
+        }
+        if (role.IsInherited != inherited)
+        {
+            entity["isinherited"] = new OptionSetValue(inherited ? 1 : 0);
+            changes.Add($"kế thừa quyền: {role.InheritanceText} → {(inherited ? "User + Team" : "Chỉ quyền Team")}");
+        }
+
+        if (changes.Count == 0)
+            return Task.CompletedTask;
+
+        return LoggedAsync(
+            "Sửa role",
+            $"Role: {role.Name}",
+            string.Join("; ", changes),
+            null,
+            null,
+            () => _client.UpdateAsync(entity, ct));
+    }
+
     public Task DeleteRoleAsync(Guid roleId, string roleName, Guid? undoOf = null, CancellationToken ct = default) =>
         LoggedAsync("Xóa role", $"Role: {roleName}", $"Id: {roleId}", null, undoOf, () => _client.DeleteAsync("role", roleId, ct));
 

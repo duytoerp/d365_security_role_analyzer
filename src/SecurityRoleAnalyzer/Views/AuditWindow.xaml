@@ -1,0 +1,56 @@
+﻿<Window x:Class="SecurityRoleAnalyzer.Views.AuditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:AuditViewModel}"
+        Title="Audit log phân quyền (từ Dynamics 365)" Width="1150" Height="740" WindowStartupLocation="CenterOwner"
+        FontFamily="Segoe UI" FontSize="13" Background="{DynamicResource AppBackgroundBrush}">
+    <Grid>
+        <Border Style="{StaticResource Card}" Margin="12">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Style="{StaticResource InfoBanner}">
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource InfoTextBrush}"
+                               Text="Đây là audit log của chính Dynamics 365, nên thấy được cả thay đổi do người khác thực hiện ngoài ứng dụng này. Lịch sử thao tác của ứng dụng nằm ở Công cụ → Lịch sử thao tác." />
+                </Border>
+
+                <Border DockPanel.Dock="Top" Style="{StaticResource WarningBanner}" Margin="0,8,0,0"
+                        Visibility="{Binding Notice.Length, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" />
+                </Border>
+
+                <WrapPanel DockPanel.Dock="Top" Margin="0,8,0,8">
+                    <TextBlock Text="Khoảng thời gian" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <ComboBox ItemsSource="{Binding DayOptions}" SelectedItem="{Binding Days}" Width="90" />
+                    <TextBlock Text="ngày gần nhất" VerticalAlignment="Center" Margin="6,0,0,0" />
+                    <Button Content="⟳ Tải lại" Command="{Binding LoadCommand}" Style="{StaticResource PrimaryButton}" Margin="12,0,0,0" />
+                    <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Tìm đối tượng, người thực hiện..." Width="320" Margin="12,0,0,0"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Content="⬇ Xuất Excel" Command="{Binding ExportCommand}" Margin="12,0,0,0" />
+                </WrapPanel>
+
+                <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="0,8,0,0" />
+
+                <DataGrid ItemsSource="{Binding EntriesView}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Thời gian" Binding="{Binding TimeText}" Width="150" />
+                        <DataGridTextColumn Header="Thao tác" Binding="{Binding Action}" Width="200" />
+                        <DataGridTextColumn Header="Bảng" Binding="{Binding EntityName}" Width="160" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Đối tượng" Binding="{Binding TargetName}" Width="*" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Người thực hiện" Binding="{Binding UserName}" Width="*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+
+        <Grid Background="{DynamicResource OverlayBrush}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+            <Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,20" MinWidth="360">
+                <StackPanel>
+                    <TextBlock Text="{Binding BusyText}" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,14,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

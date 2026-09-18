@@ -23,12 +23,16 @@ public partial class MainWindow : Window
     }
 
     // Mở menu Công cụ ngay dưới nút; ContextMenu không kế thừa DataContext nên gán thủ công.
-    private void OnToolsClick(object sender, RoutedEventArgs e)
+    private void OnToolsClick(object sender, RoutedEventArgs e) => OpenMenu(ToolsButton);
+
+    private void OnRoleActionsClick(object sender, RoutedEventArgs e) => OpenMenu(RoleActionsButton);
+
+    private void OpenMenu(System.Windows.Controls.Button button)
     {
-        if (ToolsButton.ContextMenu is not { } menu)
+        if (button.ContextMenu is not { } menu)
             return;
         menu.DataContext = DataContext;
-        menu.PlacementTarget = ToolsButton;
+        menu.PlacementTarget = button;
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         menu.IsOpen = true;
     }

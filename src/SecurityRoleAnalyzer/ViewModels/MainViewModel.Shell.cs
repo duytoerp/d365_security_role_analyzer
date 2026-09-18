@@ -220,6 +220,41 @@ public sealed partial class MainViewModel
     private void OpenSnapshot() => ShowTool(new SnapshotWindow { DataContext = new SnapshotViewModel(this) });
 
     [RelayCommand(CanExecute = nameof(CanUseTools))]
+    private void OpenRoleOverlap()
+    {
+        var vm = new RoleOverlapViewModel(this);
+        ShowTool(new RoleOverlapWindow { DataContext = vm }, vm.LoadAsync);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUseTools))]
+    private void OpenAudit()
+    {
+        var vm = new AuditViewModel(this);
+        ShowTool(new AuditWindow { DataContext = vm }, vm.LoadAsync);
+    }
+
+    [RelayCommand]
+    private void EditPolicy()
+    {
+        var path = SecurityPolicy.SaveTemplate();
+        StatusText = $"Bộ quy tắc rà soát: {path}";
+        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+    }
+
+    [RelayCommand]
+    private async Task ReloadPolicyAsync()
+    {
+        SecurityPolicy.Reload();
+        StatusText = SecurityPolicy.IsCustom
+            ? "Đã nạp lại bộ quy tắc từ policy.json."
+            : "Đang dùng bộ quy tắc mặc định (chưa có policy.json).";
+
+        // Phân tích lại mục đang xem để áp quy tắc mới.
+        if (Mode == AppMode.Roles && SelectedRole is { } role)
+            await LoadRoleAsync(role);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUseTools))]
     private void OpenImport() => ShowTool(new ImportWindow { DataContext = new ImportViewModel(this) });
 
     [RelayCommand]

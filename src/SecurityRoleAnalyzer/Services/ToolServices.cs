@@ -137,7 +137,16 @@ public static class SnapshotService
             var b = afterRoles.GetValueOrDefault(name);
             if (a is null)
             {
-                rows.Add(new SnapshotDiffRow { Category = CategoryRole, ChangeType = Added, Item = name, Detail = $"{b!.Privileges.Count} privilege", After = b.IsManaged ? "Managed" : "Unmanaged" });
+                // Role chỉ có ở bản B: áp được bằng cách tạo role rồi gán toàn bộ privilege.
+                rows.Add(new SnapshotDiffRow
+                {
+                    Category = CategoryRole,
+                    ChangeType = Added,
+                    Item = name,
+                    Detail = $"{b!.Privileges.Count} privilege",
+                    After = b.IsManaged ? "Managed" : "Unmanaged",
+                    CanApply = true,
+                });
                 continue;
             }
             if (b is null)
@@ -160,6 +169,8 @@ public static class SnapshotService
                     Detail = privilege,
                     Before = da.ToText(),
                     After = db.ToText(),
+                    TargetDepth = db,
+                    CanApply = true,
                 });
             }
         }

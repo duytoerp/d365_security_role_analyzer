@@ -1,7 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
 using SecurityRoleAnalyzer.Controls;
 using SecurityRoleAnalyzer.Models;
+using SecurityRoleAnalyzer.Services;
 using SecurityRoleAnalyzer.Views;
 
 namespace SecurityRoleAnalyzer.ViewModels;
@@ -166,4 +168,188 @@ public sealed partial class MainViewModel : IPrivilegeEditHost
         if (newId != Guid.Empty)
             OpenRole(newId);
     }
+
+    #region Tạo / sửa / xóa role
+
+    [RelayCommand(CanExecute = nameof(IsConnected))]
+    private async Task NewRoleAsync()
+    {
+        if (_service is not { } service)
+            return;
+
+        var name = InputDialog.Show(App.Current.MainWindow, "Tạo security role",
+            "Tên role mới (chưa có privilege nào):", "");
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+        if (Roles.Any(r => r.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase))
+            && !Dialogs.Confirm($"Đã có role tên \"{name}\". Vẫn tạo?"))
+            return;
+
+        // Role được tạo trong BU gốc; Dataverse tự sinh bản sao cho các BU con.
+        var rootBu = await GetRootBusinessUnitAsync(service);
+        if (rootBu is not { } bu)
+            return;
+
+        var newId = Guid.Empty;
+        await RunBusyAsync("Đang tạo role...", async () =>
+        {
+            newId = await service.CreateRoleAsync(name.Trim(), bu.Id, bu.Name);
+            await LoadRolesAsync();
+            StatusText = $"Đã tạo role \"{name}\" trong Business Unit \"{bu.Name}\".";
+        });
+        if (newId != Guid.Empty)
+            OpenRole(newId);
+    }
+
+    [RelayCommand(CanExecute = nameof(HasAnalysis))]
+    private async Task RenameRoleAsync()
+    {
+        if (_service is not { } service || Analysis is not { } analysis)
+            return;
+
+        var role = analysis.Role;
+        if (role.IsManaged
+            && !Dialogs.Confirm("Role này thuộc managed solution – đổi tên có thể bị ghi đè khi cập nhật solution.\n\nVẫn tiếp tục?"))
+            return;
+
+        var name = InputDialog.Show(App.Current.MainWindow, "Đổi tên role", "Tên mới:", role.Name);
+        if (string.IsNullOrWhiteSpace(name) || name.Trim() == role.Name)
+            return;
+
+        await RunBusyAsync("Đang đổi tên role...", async () =>
+        {
+            await service.UpdateRoleAsync(role, name.Trim(), role.IsInherited);
+            await LoadRolesAsync();
+            StatusText = $"Đã đổi tên thành \"{name.Trim()}\".";
+        });
+        if (Roles.FirstOrDefault(r => r.Id == role.Id) is { } updated)
+            SelectedRole = updated;
+    }
+
+    [RelayCommand(CanExecute = nameof(HasAnalysis))]
+    private async Task DeleteRoleAsync()
+    {
+        if (_service is not { } service || Analysis is not { } analysis)
+            return;
+
+        var role = analysis.Role;
+        var users = analysis.Users.Count;
+        var teams = analysis.Teams.Count;
+        var warning = users + teams > 0
+            ? $"\n\n⚠ Role đang được gán cho {users} user và {teams} team – họ sẽ mất quyền này ngay lập tức."
+            : "";
+
+        if (!Dialogs.Confirm($"Xóa vĩnh viễn role \"{role.Name}\"?{warning}\n\nThao tác này KHÔNG hoàn tác được."))
+            return;
+        if (!Dialogs.Confirm($"Xác nhận lần cuối: xóa role \"{role.Name}\"?"))
+            return;
+
+        await RunBusyAsync("Đang xóa role...", async () =>
+        {
+            await service.DeleteRoleAsync(role.Id, role.Name);
+            SelectedRole = null;
+            ClearAnalysis();
+            await LoadRolesAsync();
+            StatusText = $"Đã xóa role \"{role.Name}\".";
+        });
+    }
+
+    /// <summary>Business Unit gốc (không có BU cha) – nơi tạo role mới.</summary>
+    private async Task<BusinessUnitInfo?> GetRootBusinessUnitAsync(DataverseService service)
+    {
+        var units = await service.GetBusinessUnitsAsync();
+        var root = units.FirstOrDefault(u => u.ParentId is null);
+        if (root is null)
+            Dialogs.ShowWarning("Không xác định được Business Unit gốc để tạo role.");
+        return root;
+    }
+
+    #endregion
+
+    #region Xuất / nhập định nghĩa role giữa các môi trường
+
+    [RelayCommand(CanExecute = nameof(HasAnalysis))]
+    private async Task ExportRoleDefinitionAsync()
+    {
+        if (_service is not { } service || Analysis is not { } analysis)
+            return;
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Xuất định nghĩa role",
+            FileName = $"{SafeFileName(analysis.Role.Name)}_{DateTime.Now:yyyyMMdd}.role.json",
+            Filter = "Định nghĩa role (*.role.json)|*.role.json|JSON (*.json)|*.json",
+            DefaultExt = ".role.json",
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        await RunBusyAsync("Đang xuất định nghĩa role...", async () =>
+        {
+            var definition = await RoleDefinitionService.ExportAsync(service, analysis.Role);
+            RoleDefinitionService.Save(definition, dialog.FileName);
+            StatusText = $"Đã xuất \"{definition.Name}\": {definition.GrantedCount} privilege, {definition.Apps.Count} app → {dialog.FileName}";
+        });
+    }
+
+    [RelayCommand(CanExecute = nameof(IsConnected))]
+    private async Task ImportRoleDefinitionAsync()
+    {
+        if (_service is not { } service)
+            return;
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Chọn file định nghĩa role",
+            Filter = "Định nghĩa role (*.role.json;*.json)|*.role.json;*.json",
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        RoleDefinition definition;
+        try
+        {
+            definition = RoleDefinitionService.Load(dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            Dialogs.ShowError(ex, "Đọc file định nghĩa role");
+            return;
+        }
+
+        var existing = Roles.FirstOrDefault(r => r.Name.Equals(definition.Name, StringComparison.OrdinalIgnoreCase));
+        var target = RoleImportWindow.Show(App.Current.MainWindow, definition, existing);
+        if (target is null)
+            return;
+
+        var rootBu = target.Value.TargetRoleId is null ? await GetRootBusinessUnitAsync(service) : null;
+        if (target.Value.TargetRoleId is null && rootBu is null)
+            return;
+
+        var newRoleId = Guid.Empty;
+        await RunBusyAsync($"Đang áp định nghĩa role \"{definition.Name}\"...", async () =>
+        {
+            var result = await RoleDefinitionService.ApplyAsync(service, definition, target.Value.TargetRoleId,
+                rootBu?.Id ?? Guid.Empty, rootBu?.Name ?? "", target.Value.LinkApps);
+            newRoleId = result.RoleId;
+            await LoadRolesAsync();
+            StatusText = result.Summary;
+
+            if (result.MissingPrivileges.Count > 0 || result.MissingApps.Count > 0)
+            {
+                var detail = result.MissingPrivileges.Count > 0
+                    ? $"{result.MissingPrivileges.Count} privilege không có trên môi trường này:\n"
+                      + string.Join("\n", result.MissingPrivileges.Take(30))
+                    : "";
+                if (result.MissingApps.Count > 0)
+                    detail += $"\n\n{result.MissingApps.Count} app không tìm thấy:\n" + string.Join("\n", result.MissingApps.Take(15));
+                Dialogs.ShowWarning(detail.Trim());
+            }
+        });
+
+        if (newRoleId != Guid.Empty)
+            OpenRole(newRoleId);
+    }
+
+    #endregion
 }

@@ -346,6 +346,8 @@ public class XamlSmokeTests
                 new SnapshotWindow { DataContext = new SnapshotViewModel(main) },
                 new ImportWindow { DataContext = new ImportViewModel(main) },
                 new HistoryWindow { DataContext = new HistoryViewModel(main) },
+                new RoleOverlapWindow { DataContext = new RoleOverlapViewModel(main) },
+                new AuditWindow { DataContext = new AuditViewModel(main) },
                 new Window { Content = new UsersView { DataContext = main.UserManager } },
                 new Window { Content = new AppsView { DataContext = main.AppManager } },
                 new Window { Content = new FieldSecurityView { DataContext = main.FieldSecurity } },
