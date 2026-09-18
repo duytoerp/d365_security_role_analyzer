@@ -68,6 +68,12 @@
                                     <Border Style="{StaticResource InfoBanner}" Margin="0,0,10,10">
                                         <TextBlock Text="{Binding Analysis.ScopeText}" TextWrapping="Wrap" Foreground="{DynamicResource InfoTextBrush}" LineHeight="22" />
                                     </Border>
+
+                                    <TextBlock Text="Nguồn quyền nằm ngoài security role" Style="{StaticResource SectionTitle}" Margin="0,6,0,6" />
+                                    <Border Style="{StaticResource WarningBanner}" Margin="0,0,10,10">
+                                        <TextBlock Text="{Binding ExtraAccessText}" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource WarningTextBrush}" LineHeight="22" />
+                                    </Border>
                                     <TextBlock Text="{Binding FindingsHeader}" Style="{StaticResource SectionTitle}" Margin="0,6,0,8" />
                                     <ItemsControl ItemsSource="{Binding Analysis.Findings}" Style="{StaticResource Findings}" />
                                 </StackPanel>

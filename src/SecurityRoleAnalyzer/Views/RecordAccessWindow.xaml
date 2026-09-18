@@ -1,0 +1,109 @@
+﻿<Window x:Class="SecurityRoleAnalyzer.Views.RecordAccessWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:RecordAccessViewModel}"
+        Title="Vì sao user không thấy bản ghi?" Width="1120" Height="800" WindowStartupLocation="CenterOwner"
+        FontFamily="Segoe UI" FontSize="13" Background="{DynamicResource AppBackgroundBrush}">
+    <Grid>
+        <Border Style="{StaticResource Card}" Margin="12">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Style="{StaticResource InfoBanner}">
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource InfoTextBrush}"
+                               Text="Quyền hiệu lực được hỏi trực tiếp Dynamics 365 nên luôn đúng, kể cả quyền đến từ chia sẻ bản ghi, access team hay hierarchy security – những nguồn mà phân tích theo security role không thấy được." />
+                </Border>
+
+                <Grid DockPanel.Dock="Top" Margin="0,10,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Bản ghi (dán URL từ D365, hoặc nhập: account 00000000-0000-0000-0000-000000000000)"
+                                   Style="{StaticResource Muted}" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding RecordText, UpdateSourceTrigger=PropertyChanged}" />
+                        <DockPanel Margin="0,10,0,0">
+                            <Button DockPanel.Dock="Right" Content="Chọn user..." Command="{Binding PickUserCommand}" Margin="8,0,0,0" />
+                            <TextBlock Text="{Binding UserText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" VerticalAlignment="Bottom">
+                        <Button Content="🔎 Phân tích quyền" Command="{Binding ExplainCommand}" Style="{StaticResource PrimaryButton}" MinWidth="170" Margin="0,0,0,6" />
+                        <Button Content="Mở bản ghi trong D365" Command="{Binding OpenRecordCommand}" MinWidth="170" Margin="0" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="0,8,0,0" />
+
+                <Grid>
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                        <TextBlock Text="🔎" FontSize="48" HorizontalAlignment="Center" Foreground="{DynamicResource HintBrush}" />
+                        <TextBlock Text="Chọn user và dán bản ghi để xem vì sao có hay không có quyền" FontSize="15"
+                                   Foreground="{DynamicResource MutedTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0" />
+                    </StackPanel>
+
+                    <DockPanel Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}">
+                        <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Background="{DynamicResource SubtleBrush}" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Result.Headline}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Result.RightsText}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Result.Record.Caption}" Style="{StaticResource Muted}" Margin="0,8,0,0" />
+                                <TextBlock Text="{Binding Result.Record.OwnerText}" Style="{StaticResource Muted}" />
+                            </StackPanel>
+                        </Border>
+
+                        <TabControl>
+                            <TabItem Header="Vì sao">
+                                <DataGrid ItemsSource="{Binding Result.Reasons}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="40" />
+                                        <DataGridTextColumn Header="Nguồn" Binding="{Binding Source}" Width="220" />
+                                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Giải thích" Binding="{Binding Detail}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </TabItem>
+
+                            <TabItem Header="Chia sẻ bản ghi">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Muted}" Margin="0,0,0,8"
+                                               Text="User/team được chia sẻ trực tiếp bản ghi này. Chia sẻ nằm ngoài security role nên không thấy được ở chế độ Roles." />
+                                    <DataGrid ItemsSource="{Binding Result.Shares}">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Loại" Binding="{Binding TypeText}" Width="100" />
+                                            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Tên" Binding="{Binding PrincipalName}" Width="*" />
+                                            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Quyền được chia sẻ" Binding="{Binding RightsText}" Width="*" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </DockPanel>
+                            </TabItem>
+
+                            <TabItem Header="Cấu hình môi trường">
+                                <StackPanel Margin="4">
+                                    <TextBlock Text="Hierarchy security" Style="{StaticResource SectionTitle}" />
+                                    <TextBlock Text="{Binding HierarchyText}" TextWrapping="Wrap" />
+                                    <TextBlock Text="Access team template" Style="{StaticResource SectionTitle}" Margin="0,16,0,8" />
+                                    <TextBlock Text="{Binding TemplatesText}" TextWrapping="Wrap" />
+                                    <Button Content="⟳ Đọc lại cấu hình" Command="{Binding LoadContextCommand}"
+                                            HorizontalAlignment="Left" Margin="0,16,0,0" />
+                                </StackPanel>
+                            </TabItem>
+                        </TabControl>
+                    </DockPanel>
+                </Grid>
+            </DockPanel>
+        </Border>
+
+        <Grid Background="{DynamicResource OverlayBrush}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+            <Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,20" MinWidth="360">
+                <StackPanel>
+                    <TextBlock Text="{Binding BusyText}" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,14,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

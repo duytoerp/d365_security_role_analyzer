@@ -437,13 +437,37 @@ public sealed partial class BusinessUnitsViewModel(MainViewModel host) : Observa
 
     [ObservableProperty] private BusinessUnitNode? _selectedNode;
 
+    /// <summary>Nguồn quyền nằm ngoài security role: hierarchy security và access team template.</summary>
+    [ObservableProperty] private string _extraAccessText = "";
+
     public async Task LoadListAsync()
     {
         if (host.Service is not { } service)
             return;
         _index = await service.GetAccessIndexAsync(new Progress<string>(t => host.BusyText = t));
         SetTree(BusinessUnitAnalyzer.BuildTree(_index));
+        await LoadExtraAccessAsync(service);
         IsLoaded = true;
+    }
+
+    private async Task LoadExtraAccessAsync(DataverseService service)
+    {
+        try
+        {
+            var hierarchy = await service.GetHierarchySecurityAsync();
+            var templates = await service.GetAccessTeamTemplatesAsync();
+
+            ExtraAccessText = hierarchy.Text + "  ·  " + (templates.Count == 0
+                ? "Không dùng access team template."
+                : $"{templates.Count} access team template trên {templates.Select(t => t.EntityTypeCode).Distinct().Count()} bảng: "
+                  + string.Join("; ", templates.Take(4).Select(t => $"{t.Name} ({t.EntityText}) – {t.RightsText}"))
+                  + (templates.Count > 4 ? $"; ... (+{templates.Count - 4})" : ""));
+        }
+        catch (Exception ex)
+        {
+            ExtraAccessText = "Không đọc được cấu hình hierarchy security / access team template: " + ex.Message;
+            ErrorLog.Write("Đọc cấu hình quyền ngoài role", ex);
+        }
     }
 
     private void SetTree(IEnumerable<BusinessUnitNode> roots)

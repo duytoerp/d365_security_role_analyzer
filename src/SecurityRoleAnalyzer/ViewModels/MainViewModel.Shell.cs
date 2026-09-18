@@ -219,6 +219,13 @@ public sealed partial class MainViewModel
     [RelayCommand]
     private void OpenSnapshot() => ShowTool(new SnapshotWindow { DataContext = new SnapshotViewModel(this) });
 
+    [RelayCommand(CanExecute = nameof(IsConnected))]
+    private void OpenRecordAccess()
+    {
+        var vm = new RecordAccessViewModel(this);
+        ShowTool(new RecordAccessWindow { DataContext = vm }, vm.LoadContextAsync);
+    }
+
     [RelayCommand(CanExecute = nameof(CanUseTools))]
     private void OpenRoleOverlap()
     {

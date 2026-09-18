@@ -68,6 +68,7 @@
                         <Button x:Name="ToolsButton" Content="🧰 Công cụ ▾" Style="{StaticResource HeaderButton}" Click="OnToolsClick">
                             <Button.ContextMenu>
                                 <ContextMenu>
+                                    <MenuItem Header="❓ Vì sao user không thấy bản ghi này?" Command="{Binding OpenRecordAccessCommand}" />
                                     <MenuItem Header="🔎 Tra cứu ngược: ai có quyền X?" Command="{Binding OpenLookupCommand}" />
                                     <MenuItem Header="📋 Rà soát quyền toàn hệ thống (User × Role)" Command="{Binding OpenAccessReviewCommand}" />
                                     <MenuItem Header="⇄ So sánh 2 role" Command="{Binding CompareCommand}" />

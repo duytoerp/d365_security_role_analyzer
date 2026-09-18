@@ -1044,3 +1044,109 @@ public sealed partial class AuditViewModel(MainViewModel host) : ToolViewModelBa
 }
 
 #endregion
+
+#region Giải thích quyền trên một bản ghi
+
+/// <summary>Vì sao user X thấy / không thấy bản ghi Y.</summary>
+public sealed partial class RecordAccessViewModel(MainViewModel host) : ToolViewModelBase(host)
+{
+    [ObservableProperty] private string _recordText = "";
+    [ObservableProperty] private UserInfo? _user;
+    [ObservableProperty] private RecordAccessExplanation? _result;
+    [ObservableProperty] private string _hierarchyText = "";
+    [ObservableProperty] private string _templatesText = "";
+
+    public bool HasResult => Result is not null;
+    public string UserText => User is null ? "(chưa chọn user)" : $"{User.FullName} · {User.DomainName}";
+
+    partial void OnUserChanged(UserInfo? value)
+    {
+        OnPropertyChanged(nameof(UserText));
+        ExplainCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnRecordTextChanged(string value) => ExplainCommand.NotifyCanExecuteChanged();
+
+    partial void OnResultChanged(RecordAccessExplanation? value) => OnPropertyChanged(nameof(HasResult));
+
+    [RelayCommand]
+    public async Task LoadContextAsync()
+    {
+        await RunAsync("Đang đọc cấu hình bảo mật của môi trường...", async () =>
+        {
+            var service = RequireService();
+            HierarchyText = (await service.GetHierarchySecurityAsync()).Text;
+
+            var templates = await service.GetAccessTeamTemplatesAsync();
+            TemplatesText = templates.Count == 0
+                ? "Môi trường không dùng access team template."
+                : $"{templates.Count} access team template: "
+                  + string.Join("; ", templates.Take(6).Select(t => $"{t.Name} ({t.EntityText}) – {t.RightsText}"))
+                  + (templates.Count > 6 ? $"; ... (+{templates.Count - 6})" : "");
+        });
+    }
+
+    [RelayCommand]
+    private void PickUser()
+    {
+        if (Host.Service is not { } service)
+            return;
+
+        var picked = PrincipalPickerWindow.Show(App.Current.MainWindow, "Chọn user cần kiểm tra",
+            async (text, top) => await service.SearchUsersAsync(text, top),
+            actionText: "Chọn user",
+            hint: "Chọn đúng 1 user.");
+        if (picked is not { Count: 1 })
+        {
+            if (picked is { Count: > 1 })
+                Dialogs.ShowWarning("Vui lòng chọn đúng 1 user.");
+            return;
+        }
+
+        // Lấy thông tin đầy đủ (Business Unit, trạng thái) từ danh sách user đã tải.
+        var id = picked[0].Id;
+        User = Host.UserManager.Users.FirstOrDefault(u => u.Id == id)
+               ?? new UserInfo
+               {
+                   Id = id,
+                   FullName = picked[0].Name,
+                   DomainName = picked[0].Detail,
+                   BusinessUnitId = picked[0].BusinessUnitId,
+                   BusinessUnitName = picked[0].BusinessUnitName,
+               };
+    }
+
+    private bool CanExplain => User is not null && !string.IsNullOrWhiteSpace(RecordText);
+
+    [RelayCommand(CanExecute = nameof(CanExplain))]
+    private async Task ExplainAsync()
+    {
+        if (User is not { } user)
+            return;
+
+        if (RecordAccessExplainer.ParseRecordReference(RecordText) is not { } reference)
+        {
+            Dialogs.ShowWarning(
+                "Không đọc được bản ghi từ nội dung đã nhập.\n\n"
+                + "Dán URL bản ghi từ D365 (có etn= và id=), hoặc nhập theo dạng:\n"
+                + "account 00000000-0000-0000-0000-000000000000");
+            return;
+        }
+
+        await RunAsync("Đang phân tích quyền trên bản ghi...", async () =>
+        {
+            var service = RequireService();
+            Result = await RecordAccessExplainer.ExplainAsync(service, user, reference.Entity, reference.Id, Progress);
+            StatusText = Result.Headline + " " + Result.RightsText;
+        });
+    }
+
+    [RelayCommand]
+    private void OpenRecord()
+    {
+        if (Result is { } result)
+            Host.OpenRecord(result.Record.EntityLogicalName, result.Record.RecordId);
+    }
+}
+
+#endregion

@@ -76,3 +76,12 @@ public partial class AuditWindow : Window
         WindowMemory.Attach(this);
     }
 }
+
+public partial class RecordAccessWindow : Window
+{
+    public RecordAccessWindow()
+    {
+        InitializeComponent();
+        WindowMemory.Attach(this);
+    }
+}
