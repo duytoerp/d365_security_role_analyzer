@@ -8,7 +8,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="So sánh Security Role" Width="1200" Height="760" WindowStartupLocation="CenterOwner"
-        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource AppBackgroundBrush}">
+        FontFamily="Segoe UI" FontSize="13" Background="{DynamicResource AppBackgroundBrush}">
     <Border Style="{StaticResource Card}" Margin="12">
         <DockPanel>
             <Grid DockPanel.Dock="Top" Margin="0,0,0,10">

@@ -39,10 +39,10 @@
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="Bd" Property="Background" Value="#F0F4F8" />
+                                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PanelBrush}" />
                                             </Trigger>
                                             <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="Bd" Property="Background" Value="#DCEBFA" />
+                                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SelectionBrush}" />
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -54,7 +54,7 @@
                         <DataTemplate DataType="{x:Type m:TeamInfo}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding ListCaption}" Foreground="{StaticResource MutedTextBrush}" FontSize="11.5" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding ListCaption}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11.5" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -69,9 +69,9 @@
             <Grid>
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                             Visibility="{Binding HasAnalysis, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
-                    <TextBlock Text="👥" FontSize="48" HorizontalAlignment="Center" Foreground="#9FB3C8" />
+                    <TextBlock Text="👥" FontSize="48" HorizontalAlignment="Center" Foreground="{DynamicResource HintBrush}" />
                     <TextBlock Text="Chọn một team để xem role, thành viên và quyền hiệu lực" FontSize="15"
-                               Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0" />
+                               Foreground="{DynamicResource MutedTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0" />
                 </StackPanel>
 
                 <DockPanel Visibility="{Binding HasAnalysis, Converter={StaticResource BoolToVisibility}}">
@@ -101,20 +101,20 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type vm:SummaryCard}">
                                                 <Border Width="190" Margin="0,0,10,10" Padding="14,10" CornerRadius="8"
-                                                        Background="{StaticResource SubtleBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                        Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
                                                     <StackPanel>
-                                                        <TextBlock Text="{Binding Title}" Foreground="{StaticResource MutedTextBrush}" />
-                                                        <TextBlock Text="{Binding Value}" FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" />
-                                                        <TextBlock Text="{Binding Caption}" FontSize="11.5" Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding Title}" Foreground="{DynamicResource MutedTextBrush}" />
+                                                        <TextBlock Text="{Binding Value}" FontSize="26" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryBrush}" />
+                                                        <TextBlock Text="{Binding Caption}" FontSize="11.5" Foreground="{DynamicResource MutedTextBrush}" TextTrimming="CharacterEllipsis" />
                                                     </StackPanel>
                                                 </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
 
-                                    <Border Background="#FFF8E1" BorderBrush="#F2D57E" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,10,10"
+                                    <Border Background="{DynamicResource WarningBackgroundBrush}" BorderBrush="{DynamicResource WarningBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,10,10"
                                             Visibility="{Binding HasWarnings, Converter={StaticResource BoolToVisibility}}">
-                                        <TextBlock Text="{Binding WarningsText}" TextWrapping="Wrap" Foreground="#7A5B00" />
+                                        <TextBlock Text="{Binding WarningsText}" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" />
                                     </Border>
 
                                     <TextBlock Text="Mô tả" Style="{StaticResource SectionTitle}" Margin="0,6,0,4"
@@ -127,7 +127,7 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type m:AnalysisFinding}">
                                                 <Border Margin="0,0,10,8" Padding="12,8" CornerRadius="6" BorderThickness="4,1,1,1"
-                                                        BorderBrush="{Binding Severity, Converter={StaticResource SeverityBrush}}" Background="White">
+                                                        BorderBrush="{Binding Severity, Converter={StaticResource SeverityBrush}}" Background="{DynamicResource SurfaceBrush}">
                                                     <StackPanel>
                                                         <TextBlock>
                                                             <Run Text="{Binding SeverityText, Mode=OneWay}" FontWeight="Bold"
@@ -156,7 +156,7 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Tìm role..." Width="320"
                                                  Text="{Binding RoleSearchText, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Text="{Binding SelectedRolesText}" Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold"
+                                        <TextBlock Text="{Binding SelectedRolesText}" Foreground="{DynamicResource PrimaryBrush}" FontWeight="SemiBold"
                                                    VerticalAlignment="Center" Margin="12,0,0,0" />
                                     </StackPanel>
                                 </DockPanel>
@@ -173,6 +173,8 @@
                                         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Security Role" Binding="{Binding Name}" Width="*" />
                                         <DataGridTextColumn Header="Business Unit" Binding="{Binding BusinessUnitName}" Width="200" />
                                         <DataGridTextColumn Header="Managed" Binding="{Binding ManagedText}" Width="100" />
+                                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Phạm vi quyền"
+                                                            Binding="{Binding InheritanceText}" Width="150" />
                                         <DataGridTextColumn Header="Entity có quyền" Binding="{Binding GrantedEntityCount}" Width="120" />
                                         <DataGridTextColumn Header="Quyền khác" Binding="{Binding GrantedMiscCount}" Width="100" />
                                     </DataGrid.Columns>
@@ -191,13 +193,13 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Tìm thành viên / username / business unit..." Width="320"
                                                  Text="{Binding MemberSearchText, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Text="{Binding SelectedMembersText}" Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold"
+                                        <TextBlock Text="{Binding SelectedMembersText}" Foreground="{DynamicResource PrimaryBrush}" FontWeight="SemiBold"
                                                    VerticalAlignment="Center" Margin="12,0,0,0" />
                                     </StackPanel>
                                 </DockPanel>
-                                <Border DockPanel.Dock="Top" Background="#EAF3FC" BorderBrush="#B7D4F0" BorderThickness="1" CornerRadius="6" Padding="10,7" Margin="0,0,0,8"
+                                <Border DockPanel.Dock="Top" Background="{DynamicResource InfoBackgroundBrush}" BorderBrush="{DynamicResource InfoBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="10,7" Margin="0,0,0,8"
                                         Visibility="{Binding HasMembersNote, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock Text="{Binding MembersNote}" TextWrapping="Wrap" Foreground="#0B4A85" />
+                                    <TextBlock Text="{Binding MembersNote}" TextWrapping="Wrap" Foreground="{DynamicResource InfoTextBrush}" />
                                 </Border>
                                 <DataGrid x:Name="MembersGrid" ItemsSource="{Binding MembersView}" SelectionMode="Extended" ToolTip="Double-click để mở user"
                                           c:GridSelection.Enabled="True" c:GridSelection.SelectedItems="{Binding SelectedMembers, Mode=OneWayToSource}">
@@ -252,7 +254,7 @@
                                          Text="{Binding MiscSearchText, UpdateSourceTrigger=PropertyChanged}" />
                                 <DataGrid ItemsSource="{Binding MiscView}">
                                     <DataGrid.Columns>
-                                        <c:DepthColumn Header="" CellPath="Depth" IsPrivilegeCell="False" Width="40" />
+                                        <c:DepthColumn Header="" CellPath="Depth" IsPrivilegeCell="False" ChangedPath="IsChanged" Width="40" />
                                         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Privilege" Binding="{Binding Name}" Width="300" />
                                         <DataGridTextColumn Header="Mức" Binding="{Binding DepthText}" Width="140" />
                                         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Từ role" Binding="{Binding SourcesText}" Width="*" />
@@ -266,6 +268,9 @@
                             <DockPanel>
                                 <TextBlock DockPanel.Dock="Top" Style="{StaticResource Muted}" Margin="0,0,0,8"
                                            Text="Model-driven App mà thành viên mở được nhờ các role của team." />
+                                <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Tìm app..." Width="300"
+                                         HorizontalAlignment="Left" Margin="0,0,0,8"
+                                         Text="{Binding AppSearchText, UpdateSourceTrigger=PropertyChanged}" />
                                 <DataGrid ItemsSource="{Binding AppsView}">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="App" Binding="{Binding Name}" Width="*" />

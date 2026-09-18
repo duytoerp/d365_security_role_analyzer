@@ -186,7 +186,10 @@ public sealed partial class TeamManagerViewModel : ObservableObject
         MembersView = new ListCollectionView(analysis.Members) { Filter = FilterMember };
         EntityRowsView = new ListCollectionView(analysis.EntityRows) { Filter = FilterEntity };
         MiscView = new ListCollectionView(analysis.MiscPrivileges) { Filter = FilterMisc };
-        AppsView = new ListCollectionView(analysis.Apps);
+        AppsView = new ListCollectionView(analysis.Apps)
+        {
+            Filter = o => o is RoleComponent c && (MainViewModel.Contains(c.Name, AppSearchText) || MainViewModel.Contains(c.SubType, AppSearchText)),
+        };
 
         SummaryCards.Clear();
         var granted = analysis.EntityRows.Where(r => r.HasAnyPrivilege).ToList();
@@ -223,6 +226,9 @@ public sealed partial class TeamManagerViewModel : ObservableObject
     [ObservableProperty] private string _miscSearchText = "";
 
     partial void OnRoleSearchTextChanged(string value) => RolesView?.Refresh();
+
+    [ObservableProperty] private string _appSearchText = "";
+    partial void OnAppSearchTextChanged(string value) => AppsView?.Refresh();
     partial void OnMemberSearchTextChanged(string value) => MembersView?.Refresh();
     partial void OnEntitySearchTextChanged(string value) => EntityRowsView?.Refresh();
     partial void OnOnlyGrantedEntitiesChanged(bool value) => EntityRowsView?.Refresh();
@@ -365,7 +371,7 @@ public sealed partial class TeamManagerViewModel : ObservableObject
         var picked = PrincipalPickerWindow.Show(
             App.Current.MainWindow,
             $"Thêm thành viên vào team \"{analysis.Team.Name}\"",
-            async text => (await service.SearchUsersAsync(text)).Where(u => !existing.Contains(u.Id)).ToList(),
+            async (text, top) => (await service.SearchUsersAsync(text, top)).Where(u => !existing.Contains(u.Id)).ToList(),
             actionText: "Thêm vào team",
             hint: "Nhập tên hoặc username rồi nhấn Enter. Tick nhiều user để thêm cùng lúc.");
         if (picked is null || picked.Count == 0)

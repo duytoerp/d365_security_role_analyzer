@@ -6,7 +6,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:HistoryViewModel}"
         Title="Lịch sử thao tác" Width="1300" Height="760" WindowStartupLocation="CenterOwner"
-        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource AppBackgroundBrush}">
+        FontFamily="Segoe UI" FontSize="13" Background="{DynamicResource AppBackgroundBrush}">
     <Grid>
         <Border Style="{StaticResource Card}" Margin="12">
             <DockPanel>
@@ -40,7 +40,7 @@
             </DockPanel>
         </Border>
 
-        <Grid Background="#99F3F5F8" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+        <Grid Background="{DynamicResource OverlayBrush}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
             <Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,20" MinWidth="360">
                 <StackPanel>
                     <TextBlock Text="{Binding BusyText}" HorizontalAlignment="Center" TextWrapping="Wrap" />

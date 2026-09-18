@@ -32,7 +32,7 @@
                         <DataTemplate DataType="{x:Type m:UserInfo}">
                             <StackPanel>
                                 <TextBlock Text="{Binding FullName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding ListCaption}" Foreground="{StaticResource MutedTextBrush}" FontSize="11.5" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding ListCaption}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11.5" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -46,7 +46,7 @@
             <Grid>
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                             Visibility="{Binding HasAnalysis, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
-                    <TextBlock Text="👤" FontSize="48" HorizontalAlignment="Center" Foreground="#9FB3C8" />
+                    <TextBlock Text="👤" FontSize="48" HorizontalAlignment="Center" Foreground="{DynamicResource HintBrush}" />
                     <TextBlock Text="Chọn một user để xem role (trực tiếp + qua team), quyền hiệu lực và sao chép quyền" Style="{StaticResource EmptyHint}" Margin="0,8,0,0" />
                 </StackPanel>
 
@@ -71,7 +71,7 @@
                                 <StackPanel>
                                     <ItemsControl ItemsSource="{Binding SummaryCards}" Style="{StaticResource SummaryCards}" />
                                     <Border Style="{StaticResource WarningBanner}" Margin="0,0,10,10" Visibility="{Binding HasWarnings, Converter={StaticResource BoolToVisibility}}">
-                                        <TextBlock Text="{Binding WarningsText}" TextWrapping="Wrap" Foreground="#7A5B00" />
+                                        <TextBlock Text="{Binding WarningsText}" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" />
                                     </Border>
                                     <TextBlock Text="{Binding FindingsHeader}" Style="{StaticResource SectionTitle}" Margin="0,6,0,8" />
                                     <ItemsControl ItemsSource="{Binding Analysis.Findings}" Style="{StaticResource Findings}" />
@@ -118,7 +118,9 @@
                                         <Button Content="＋ Thêm vào team" Command="{Binding AddToTeamsCommand}" Style="{StaticResource PrimaryButton}" />
                                         <Button Content="Gỡ khỏi team đã chọn" Command="{Binding RemoveFromTeamsCommand}" Style="{StaticResource DangerButton}" />
                                     </StackPanel>
-                                    <TextBlock Text="{Binding SelectedTeamsText}" Style="{StaticResource SelectionText}" Margin="0" />
+                                    <TextBox DockPanel.Dock="Left" Style="{StaticResource SearchBox}" Tag="🔍 Tìm team..." Width="260" Margin="0,0,12,0"
+                                             Text="{Binding TeamSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Text="{Binding SelectedTeamsText}" Style="{StaticResource SelectionText}" Margin="0" VerticalAlignment="Center" />
                                 </DockPanel>
                                 <DataGrid x:Name="TeamsGrid" ItemsSource="{Binding TeamsView}" SelectionMode="Extended" ToolTip="Double-click để mở team"
                                           c:GridSelection.Enabled="True" c:GridSelection.SelectedItems="{Binding SelectedTeams, Mode=OneWayToSource}">
@@ -169,7 +171,7 @@
                                          HorizontalAlignment="Left" Margin="0,0,0,8" Text="{Binding MiscSearchText, UpdateSourceTrigger=PropertyChanged}" />
                                 <DataGrid ItemsSource="{Binding MiscView}">
                                     <DataGrid.Columns>
-                                        <c:DepthColumn Header="" CellPath="Depth" IsPrivilegeCell="False" Width="40" />
+                                        <c:DepthColumn Header="" CellPath="Depth" IsPrivilegeCell="False" ChangedPath="IsChanged" Width="40" />
                                         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Privilege" Binding="{Binding Name}" Width="300" />
                                         <DataGridTextColumn Header="Mức" Binding="{Binding DepthText}" Width="140" />
                                         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Từ role" Binding="{Binding SourcesText}" Width="*" />
@@ -179,6 +181,10 @@
                         </TabItem>
 
                         <TabItem Header="{Binding AppsTabHeader}">
+                            <DockPanel>
+                            <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Tìm app..." Width="300"
+                                     HorizontalAlignment="Left" Margin="0,0,0,8"
+                                     Text="{Binding AppSearchText, UpdateSourceTrigger=PropertyChanged}" />
                             <DataGrid ItemsSource="{Binding AppsView}">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="App" Binding="{Binding Name}" Width="*" />
@@ -187,12 +193,16 @@
                                     <DataGridTextColumn Header="Managed" Binding="{Binding ManagedText}" Width="100" />
                                 </DataGrid.Columns>
                             </DataGrid>
+                            </DockPanel>
                         </TabItem>
 
                         <TabItem Header="{Binding ProfilesTabHeader}">
                             <DockPanel>
                                 <TextBlock DockPanel.Dock="Top" Style="{StaticResource Muted}" Margin="0,0,0,8"
                                            Text="Field Security Profile quyết định user đọc/ghi được các cột được bảo mật (column security)." />
+                                <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Tìm profile..." Width="300"
+                                         HorizontalAlignment="Left" Margin="0,0,0,8"
+                                         Text="{Binding ProfileSearchText, UpdateSourceTrigger=PropertyChanged}" />
                                 <DataGrid ItemsSource="{Binding ProfilesView}">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Field Security Profile" Binding="{Binding Name}" Width="*" />

@@ -7,7 +7,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:BulkPrivilegeViewModel}"
         Title="Áp quyền hàng loạt cho nhiều role" Width="1400" Height="860" WindowStartupLocation="CenterOwner"
-        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource AppBackgroundBrush}">
+        FontFamily="Segoe UI" FontSize="13" Background="{DynamicResource AppBackgroundBrush}">
     <Grid>
         <DockPanel Margin="12">
             <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="4,8,0,0" />
@@ -75,10 +75,13 @@
                             <TextBlock Text="Thay đổi sẽ áp dụng" Style="{StaticResource SectionTitle}" Margin="0" VerticalAlignment="Center" />
                         </DockPanel>
                         <Border DockPanel.Dock="Top" Style="{StaticResource InfoBanner}">
-                            <TextBlock TextWrapping="Wrap" Foreground="#0B4A85"
+                            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource InfoTextBrush}"
                                        Text="Privilege của mỗi role được sao lưu tự động trước khi sửa. Có thể hoàn tác trong Công cụ → Lịch sử thao tác, hoặc khôi phục từ bản sao lưu." />
                         </Border>
-                        <DataGrid ItemsSource="{Binding Preview}">
+                        <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Lọc role hoặc entity trong danh sách xem trước..." Width="380"
+                                 HorizontalAlignment="Left" Margin="0,0,0,8"
+                                 Text="{Binding PreviewFilterText, UpdateSourceTrigger=PropertyChanged}" />
+                        <DataGrid ItemsSource="{Binding PreviewView}">
                             <DataGrid.Columns>
                                 <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Role" Binding="{Binding RoleName}" Width="*" />
                                 <DataGridTextColumn Header="Entity" Binding="{Binding Entity}" Width="150" />
@@ -94,11 +97,17 @@
             </Grid>
         </DockPanel>
 
-        <Grid Background="#99F3F5F8" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+        <Grid Background="{DynamicResource OverlayBrush}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
             <Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,20" MinWidth="360">
                 <StackPanel>
                     <TextBlock Text="{Binding BusyText}" HorizontalAlignment="Center" TextWrapping="Wrap" />
-                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,14,0,0" />
+                    <ProgressBar Height="6" Margin="0,14,0,0" Minimum="0" Maximum="100" Value="{Binding BusyProgress, Mode=OneWay}"
+                                 IsIndeterminate="{Binding HasProgressValue, Converter={StaticResource InverseBool}}" />
+                    <TextBlock Text="{Binding ProgressText}" HorizontalAlignment="Center" Margin="0,6,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Visibility="{Binding HasProgressValue, Converter={StaticResource BoolToVisibility}}" />
+                    <Button Content="Hủy" Command="{Binding CancelCommand}" HorizontalAlignment="Center" Margin="0,12,0,0" MinWidth="100"
+                            Visibility="{Binding CanCancel, Converter={StaticResource BoolToVisibility}}" />
                 </StackPanel>
             </Border>
         </Grid>

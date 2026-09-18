@@ -280,6 +280,15 @@ public sealed partial class FieldSecurityViewModel(MainViewModel host) : Observa
     [ObservableProperty] private string _permissionSearchText = "";
     partial void OnPermissionSearchTextChanged(string value) => PermissionsView?.Refresh();
 
+    [ObservableProperty] private string _userSearchText = "";
+    partial void OnUserSearchTextChanged(string value) => UsersView?.Refresh();
+
+    [ObservableProperty] private string _teamSearchText = "";
+    partial void OnTeamSearchTextChanged(string value) => TeamsView?.Refresh();
+
+    [ObservableProperty] private string _effectiveSearchText = "";
+    partial void OnEffectiveSearchTextChanged(string value) => EffectiveView?.Refresh();
+
     public string PermissionsTabHeader => Analysis is null ? "Field permissions" : $"Field permissions ({Analysis.Permissions.Count})";
     public string UsersTabHeader => Analysis is null ? "Users" : $"Users ({Analysis.Users.Count})";
     public string TeamsTabHeader => Analysis is null ? "Teams" : $"Teams ({Analysis.Teams.Count})";
@@ -294,9 +303,21 @@ public sealed partial class FieldSecurityViewModel(MainViewModel host) : Observa
             Filter = o => o is FieldPermissionRow r && (MainViewModel.Contains(r.EntityDisplayName, PermissionSearchText)
                 || MainViewModel.Contains(r.AttributeDisplayName, PermissionSearchText) || MainViewModel.Contains(r.Attribute, PermissionSearchText)),
         };
-        UsersView = new ListCollectionView(analysis.Users);
-        TeamsView = new ListCollectionView(analysis.Teams);
-        EffectiveView = new ListCollectionView(analysis.EffectiveUsers);
+        UsersView = new ListCollectionView(analysis.Users)
+        {
+            Filter = o => o is UserInfo u && (MainViewModel.Contains(u.FullName, UserSearchText)
+                || MainViewModel.Contains(u.DomainName, UserSearchText) || MainViewModel.Contains(u.BusinessUnitName, UserSearchText)),
+        };
+        TeamsView = new ListCollectionView(analysis.Teams)
+        {
+            Filter = o => o is TeamInfo t && (MainViewModel.Contains(t.Name, TeamSearchText)
+                || MainViewModel.Contains(t.BusinessUnitName, TeamSearchText) || MainViewModel.Contains(t.TeamTypeText, TeamSearchText)),
+        };
+        EffectiveView = new ListCollectionView(analysis.EffectiveUsers)
+        {
+            Filter = o => o is PrincipalAccessRow r && (MainViewModel.Contains(r.Name, EffectiveSearchText)
+                || MainViewModel.Contains(r.Detail, EffectiveSearchText) || MainViewModel.Contains(r.Via, EffectiveSearchText)),
+        };
         SummaryCards.Clear();
         SummaryCards.Add(new SummaryCard("Cột bảo mật", analysis.Permissions.Count.ToString(), $"{analysis.Permissions.Select(p => p.Entity).Distinct().Count()} entity"));
         SummaryCards.Add(new SummaryCard("User trực tiếp", analysis.Users.Count.ToString(), "gán trực tiếp"));
@@ -332,7 +353,7 @@ public sealed partial class FieldSecurityViewModel(MainViewModel host) : Observa
         var existing = isTeam ? analysis.Teams.Select(t => t.Id).ToHashSet() : analysis.Users.Select(u => u.Id).ToHashSet();
         var picked = PrincipalPickerWindow.Show(App.Current.MainWindow,
             $"Thêm {(isTeam ? "team" : "user")} vào profile \"{analysis.Profile.Name}\"",
-            async text => (isTeam ? await service.SearchTeamsAsync(text) : await service.SearchUsersAsync(text)).Where(p => !existing.Contains(p.Id)).ToList(),
+            async (text, top) => (isTeam ? await service.SearchTeamsAsync(text, top) : await service.SearchUsersAsync(text, top)).Where(p => !existing.Contains(p.Id)).ToList(),
             actionText: "Thêm vào profile");
         if (picked is null || picked.Count == 0)
             return;
@@ -466,6 +487,12 @@ public sealed partial class BusinessUnitsViewModel(MainViewModel host) : Observa
     [ObservableProperty] private string _userSearchText = "";
     partial void OnUserSearchTextChanged(string value) => UsersView?.Refresh();
 
+    [ObservableProperty] private string _teamSearchText = "";
+    partial void OnTeamSearchTextChanged(string value) => TeamsView?.Refresh();
+
+    [ObservableProperty] private string _roleSearchText = "";
+    partial void OnRoleSearchTextChanged(string value) => RoleUsageView?.Refresh();
+
     public string UsersTabHeader => Analysis is null ? "Users" : $"Users ({Analysis.Users.Count})";
     public string TeamsTabHeader => Analysis is null ? "Teams" : $"Teams ({Analysis.Teams.Count})";
     public string RolesTabHeader => Analysis is null ? "Role đang dùng" : $"Role đang dùng ({Analysis.RoleUsage.Count})";
@@ -478,8 +505,14 @@ public sealed partial class BusinessUnitsViewModel(MainViewModel host) : Observa
         {
             Filter = o => o is UserInfo u && (MainViewModel.Contains(u.FullName, UserSearchText) || MainViewModel.Contains(u.DomainName, UserSearchText)),
         };
-        TeamsView = new ListCollectionView(analysis.Teams);
-        RoleUsageView = new ListCollectionView(analysis.RoleUsage);
+        TeamsView = new ListCollectionView(analysis.Teams)
+        {
+            Filter = o => o is TeamInfo t && (MainViewModel.Contains(t.Name, TeamSearchText) || MainViewModel.Contains(t.TeamTypeText, TeamSearchText)),
+        };
+        RoleUsageView = new ListCollectionView(analysis.RoleUsage)
+        {
+            Filter = o => o is RoleUsageRow r && MainViewModel.Contains(r.Name, RoleSearchText),
+        };
         var subtree = analysis.Node.DescendantsAndSelf().ToList();
         SummaryCards.Clear();
         SummaryCards.Add(new SummaryCard("User", analysis.Users.Count(u => !u.IsDisabled).ToString(), $"{analysis.Users.Count(u => u.IsDisabled)} disabled"));

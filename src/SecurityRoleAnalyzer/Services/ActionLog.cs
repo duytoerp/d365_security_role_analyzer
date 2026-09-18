@@ -51,9 +51,23 @@ public sealed class ActionLogEntry
     /// <summary>Mục này là thao tác hoàn tác của mục có Id tương ứng.</summary>
     public Guid? UndoOf { get; set; }
 
+    /// <summary>Thao tác lỗi giữa chừng: một phần thay đổi đã được ghi, cần hoàn tác để đưa về trạng thái cũ.</summary>
+    public bool PartiallyApplied { get; set; }
+
     [JsonIgnore] public bool IsUndone { get; set; }
-    [JsonIgnore] public string ResultText => Success ? (IsUndone ? "Thành công (đã hoàn tác)" : "Thành công") : "Lỗi";
-    [JsonIgnore] public bool CanUndo => Success && !IsUndone && UndoOf is null && Undo is { Kind: not UndoKind.None };
+
+    [JsonIgnore]
+    public string ResultText => Success
+        ? (IsUndone ? "Thành công (đã hoàn tác)" : "Thành công")
+        : (PartiallyApplied ? (IsUndone ? "Lỗi dở dang (đã hoàn tác)" : "⚠ Lỗi dở dang") : "Lỗi");
+
+    /// <summary>
+    /// Hoàn tác được khi thao tác thành công, hoặc khi thao tác lỗi nhưng đã kịp thay đổi dữ liệu –
+    /// trường hợp này chính là lúc cần hoàn tác nhất.
+    /// </summary>
+    [JsonIgnore]
+    public bool CanUndo => (Success || PartiallyApplied) && !IsUndone && UndoOf is null
+                           && Undo is { Kind: not UndoKind.None };
 }
 
 /// <summary>Lưu lịch sử thao tác dạng JSON Lines tại %LOCALAPPDATA%\SecurityRoleAnalyzer\history.jsonl.</summary>
@@ -62,25 +76,62 @@ public static class ActionLogStore
     private static readonly object Sync = new();
     private static readonly JsonSerializerOptions Options = new() { Converters = { new JsonStringEnumConverter() } };
 
+    /// <summary>Khóa liên tiến trình: nhiều cửa sổ app cùng ghi sẽ không xen kẽ dòng.</summary>
+    private static readonly Mutex FileLock = new(false, @"Global\SecurityRoleAnalyzer.history");
+
     public static string FilePath => Path.Combine(ConnectionProfileStore.AppDataFolder, "history.jsonl");
 
     public static event Action<ActionLogEntry>? EntryAdded;
+
+    /// <summary>Lỗi ghi nhật ký gần nhất; null nếu lần ghi cuối thành công.</summary>
+    public static string? LastWriteError { get; private set; }
+
+    /// <summary>Báo khi không ghi được nhật ký – mất dấu vết thao tác là chuyện phải cho người dùng biết.</summary>
+    public static event Action<string>? WriteFailed;
 
     public static void Append(ActionLogEntry entry)
     {
         try
         {
-            lock (Sync)
+            WithFileLock(() =>
             {
                 Directory.CreateDirectory(ConnectionProfileStore.AppDataFolder);
                 File.AppendAllText(FilePath, JsonSerializer.Serialize(entry, Options) + Environment.NewLine);
-            }
+            });
+            LastWriteError = null;
         }
-        catch
+        catch (Exception ex)
         {
-            // Không để lỗi ghi log làm hỏng thao tác chính.
+            // Không để lỗi ghi log làm hỏng thao tác chính, nhưng phải báo ra ngoài.
+            LastWriteError = ex.Message;
+            WriteFailed?.Invoke($"Không ghi được nhật ký thao tác vào {FilePath}: {ex.Message}");
         }
         EntryAdded?.Invoke(entry);
+    }
+
+    private static void WithFileLock(Action action)
+    {
+        var acquired = false;
+        try
+        {
+            try
+            {
+                acquired = FileLock.WaitOne(TimeSpan.FromSeconds(5));
+            }
+            catch (AbandonedMutexException)
+            {
+                // Tiến trình giữ khóa đã thoát đột ngột; khóa vẫn thuộc về ta.
+                acquired = true;
+            }
+
+            lock (Sync)
+                action();
+        }
+        finally
+        {
+            if (acquired)
+                FileLock.ReleaseMutex();
+        }
     }
 
     public static List<ActionLogEntry> Load()
@@ -91,7 +142,7 @@ public static class ActionLogStore
             if (!File.Exists(FilePath))
                 return entries;
 
-            lock (Sync)
+            WithFileLock(() =>
             {
                 foreach (var line in File.ReadLines(FilePath))
                 {
@@ -107,7 +158,7 @@ public static class ActionLogStore
                         // Bỏ qua dòng hỏng.
                     }
                 }
-            }
+            });
         }
         catch
         {

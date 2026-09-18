@@ -1,14 +1,18 @@
 using System.Windows;
 using SecurityRoleAnalyzer.Models;
+using SecurityRoleAnalyzer.Services;
 
 namespace SecurityRoleAnalyzer.Views;
 
 public partial class PrincipalPickerWindow : Window
 {
-    private readonly Func<string, Task<List<PrincipalSearchResult>>> _search;
+    private readonly Func<string, int, Task<List<PrincipalSearchResult>>> _search;
     private readonly string _actionText;
 
-    private PrincipalPickerWindow(string title, Func<string, Task<List<PrincipalSearchResult>>> search,
+    /// <summary>Giới hạn kết quả hiện tại; nút "Tải thêm" nhân đôi giới hạn rồi tìm lại.</summary>
+    private int _limit = DataverseService.DefaultSearchTop;
+
+    private PrincipalPickerWindow(string title, Func<string, int, Task<List<PrincipalSearchResult>>> search,
         string actionText, string? hint, bool searchOnOpen)
     {
         InitializeComponent();
@@ -31,28 +35,51 @@ public partial class PrincipalPickerWindow : Window
 
     /// <param name="actionText">Nội dung nút xác nhận, ví dụ "Gán role", "Thêm vào team".</param>
     /// <param name="searchOnOpen">Tìm ngay khi mở (dùng cho danh sách cục bộ như role).</param>
-    public static List<PrincipalSearchResult>? Show(Window? owner, string title, Func<string, Task<List<PrincipalSearchResult>>> search,
+    public static List<PrincipalSearchResult>? Show(Window? owner, string title, Func<string, int, Task<List<PrincipalSearchResult>>> search,
         string actionText = "Gán role", string? hint = null, bool searchOnOpen = false)
     {
         var window = new PrincipalPickerWindow(title, search, actionText, hint, searchOnOpen) { Owner = owner };
         return window.ShowDialog() == true ? window.Selected : null;
     }
 
-    private async void OnSearch(object sender, RoutedEventArgs e)
+    /// <summary>Dạng rút gọn cho danh sách cục bộ (không cần giới hạn số dòng).</summary>
+    public static List<PrincipalSearchResult>? Show(Window? owner, string title, Func<string, Task<List<PrincipalSearchResult>>> search,
+        string actionText = "Gán role", string? hint = null, bool searchOnOpen = false) =>
+        Show(owner, title, (text, _) => search(text), actionText, hint, searchOnOpen);
+
+    private void OnSearch(object sender, RoutedEventArgs e)
+    {
+        _limit = DataverseService.DefaultSearchTop;
+        _ = RunSearchAsync();
+    }
+
+    private void OnLoadMore(object sender, RoutedEventArgs e)
+    {
+        _limit *= 4;
+        _ = RunSearchAsync();
+    }
+
+    private async Task RunSearchAsync()
     {
         IsEnabled = false;
         InfoText.Text = "Đang tìm...";
         try
         {
-            var results = await _search(SearchBox.Text);
+            var results = await _search(SearchBox.Text, _limit);
             ResultGrid.ItemsSource = results;
-            InfoText.Text = results.Count == 100
-                ? "Hiển thị 100 kết quả đầu tiên – hãy nhập từ khóa cụ thể hơn."
-                : $"Tìm thấy {results.Count} kết quả.";
+
+            var truncated = results.Count >= _limit;
+            LoadMoreButton.Visibility = truncated ? Visibility.Visible : Visibility.Collapsed;
+            InfoText.Text = results.Count == 0
+                ? "Không có kết quả nào khớp. Thử từ khóa khác."
+                : truncated
+                    ? $"Hiển thị {results.Count} kết quả đầu tiên – nhập từ khóa cụ thể hơn, hoặc bấm \"Tải thêm\"."
+                    : $"Tìm thấy {results.Count} kết quả.";
         }
         catch (Exception ex)
         {
             InfoText.Text = "Lỗi: " + ex.Message;
+            ErrorLog.Write("Tìm user/team", ex);
         }
         finally
         {

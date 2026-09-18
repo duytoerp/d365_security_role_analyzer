@@ -6,12 +6,12 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:ImportViewModel}"
         Title="Import phân quyền từ Excel / CSV" Width="1250" Height="780" WindowStartupLocation="CenterOwner"
-        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource AppBackgroundBrush}">
+        FontFamily="Segoe UI" FontSize="13" Background="{DynamicResource AppBackgroundBrush}">
     <Grid>
         <Border Style="{StaticResource Card}" Margin="12">
             <DockPanel>
                 <Border DockPanel.Dock="Top" Style="{StaticResource InfoBanner}">
-                    <TextBlock TextWrapping="Wrap" Foreground="#0B4A85">
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource InfoTextBrush}">
                         <Run FontWeight="SemiBold" Text="Cột file:" /> Loại (User/Team) · Principal (username, email hoặc họ tên / tên team) · Hành động (Gán role, Gỡ role, Thêm vào team, Gỡ khỏi team) · Đối tượng (tên role / tên team).
                         <LineBreak />
                         File được kiểm tra trước (không thay đổi gì); chỉ các dòng "Hợp lệ" được thực hiện khi bấm "Thực hiện". Mọi thao tác ghi vào Lịch sử và có thể hoàn tác.
@@ -46,11 +46,17 @@
             </DockPanel>
         </Border>
 
-        <Grid Background="#99F3F5F8" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+        <Grid Background="{DynamicResource OverlayBrush}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
             <Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,20" MinWidth="360">
                 <StackPanel>
                     <TextBlock Text="{Binding BusyText}" HorizontalAlignment="Center" TextWrapping="Wrap" />
-                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,14,0,0" />
+                    <ProgressBar Height="6" Margin="0,14,0,0" Minimum="0" Maximum="100" Value="{Binding BusyProgress, Mode=OneWay}"
+                                 IsIndeterminate="{Binding HasProgressValue, Converter={StaticResource InverseBool}}" />
+                    <TextBlock Text="{Binding ProgressText}" HorizontalAlignment="Center" Margin="0,6,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Visibility="{Binding HasProgressValue, Converter={StaticResource BoolToVisibility}}" />
+                    <Button Content="Hủy" Command="{Binding CancelCommand}" HorizontalAlignment="Center" Margin="0,12,0,0" MinWidth="100"
+                            Visibility="{Binding CanCancel, Converter={StaticResource BoolToVisibility}}" />
                 </StackPanel>
             </Border>
         </Grid>

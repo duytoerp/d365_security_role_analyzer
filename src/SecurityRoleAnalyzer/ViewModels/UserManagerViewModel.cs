@@ -177,11 +177,22 @@ public sealed partial class UserManagerViewModel : ObservableObject
     private void ApplyAnalysis(UserAnalysis analysis)
     {
         RolesView = new ListCollectionView(analysis.AllRoles.OrderBy(r => r.Name).ThenBy(r => !r.IsDirect).ToList()) { Filter = FilterRole };
-        TeamsView = new ListCollectionView(analysis.Teams);
+        TeamsView = new ListCollectionView(analysis.Teams)
+        {
+            Filter = o => o is TeamInfo t && (MainViewModel.Contains(t.Name, TeamSearchText)
+                || MainViewModel.Contains(t.TeamTypeText, TeamSearchText) || MainViewModel.Contains(t.BusinessUnitName, TeamSearchText)),
+        };
         EntityRowsView = new ListCollectionView(analysis.EntityRows) { Filter = FilterEntity };
         MiscView = new ListCollectionView(analysis.MiscPrivileges) { Filter = FilterMisc };
-        AppsView = new ListCollectionView(analysis.Apps);
-        ProfilesView = new ListCollectionView(analysis.FieldProfiles);
+        AppsView = new ListCollectionView(analysis.Apps)
+        {
+            Filter = o => o is RoleComponent c && (MainViewModel.Contains(c.Name, AppSearchText) || MainViewModel.Contains(c.SubType, AppSearchText)),
+        };
+        ProfilesView = new ListCollectionView(analysis.FieldProfiles)
+        {
+            Filter = o => o is FieldProfileAssignment p && (MainViewModel.Contains(p.Name, ProfileSearchText)
+                || MainViewModel.Contains(p.SourceText, ProfileSearchText)),
+        };
 
         SummaryCards.Clear();
         var granted = analysis.EntityRows.Where(r => r.HasAnyPrivilege).ToList();
@@ -200,6 +211,14 @@ public sealed partial class UserManagerViewModel : ObservableObject
     [ObservableProperty] private string _entitySearchText = "";
     [ObservableProperty] private bool _onlyGrantedEntities = true;
     [ObservableProperty] private string _miscSearchText = "";
+
+    [ObservableProperty] private string _teamSearchText = "";
+    [ObservableProperty] private string _appSearchText = "";
+    [ObservableProperty] private string _profileSearchText = "";
+
+    partial void OnTeamSearchTextChanged(string value) => TeamsView?.Refresh();
+    partial void OnAppSearchTextChanged(string value) => AppsView?.Refresh();
+    partial void OnProfileSearchTextChanged(string value) => ProfilesView?.Refresh();
 
     partial void OnRoleSearchTextChanged(string value) => RolesView?.Refresh();
     partial void OnEntitySearchTextChanged(string value) => EntityRowsView?.Refresh();
@@ -305,7 +324,7 @@ public sealed partial class UserManagerViewModel : ObservableObject
         var picked = PrincipalPickerWindow.Show(
             App.Current.MainWindow,
             $"Thêm user \"{user.FullName}\" vào team",
-            async text => (await service.SearchTeamsAsync(text)).Where(t => !current.Contains(t.Id)).ToList(),
+            async (text, top) => (await service.SearchTeamsAsync(text, top)).Where(t => !current.Contains(t.Id)).ToList(),
             actionText: "Thêm vào team",
             hint: "Chỉ thêm được vào Owner/Access team (không phải default team hay team Entra ID).");
         if (picked is null || picked.Count == 0)
@@ -345,7 +364,7 @@ public sealed partial class UserManagerViewModel : ObservableObject
         var targets = PrincipalPickerWindow.Show(
             App.Current.MainWindow,
             $"Sao chép quyền của \"{source.User.FullName}\" sang user khác",
-            async text => (await service.SearchUsersAsync(text)).Where(u => u.Id != source.User.Id).ToList(),
+            async (text, top) => (await service.SearchUsersAsync(text, top)).Where(u => u.Id != source.User.Id).ToList(),
             actionText: "Chọn user đích",
             hint: "Tick các user sẽ nhận quyền giống user đang xem.");
         if (targets is null || targets.Count == 0)
@@ -375,7 +394,7 @@ public sealed partial class UserManagerViewModel : ObservableObject
         var picked = PrincipalPickerWindow.Show(
             App.Current.MainWindow,
             $"Chọn user nguồn để sao chép quyền cho \"{target.User.FullName}\"",
-            async text => (await service.SearchUsersAsync(text)).Where(u => u.Id != target.User.Id).ToList(),
+            async (text, top) => (await service.SearchUsersAsync(text, top)).Where(u => u.Id != target.User.Id).ToList(),
             actionText: "Chọn làm user nguồn",
             hint: "Chọn đúng 1 user nguồn.");
         if (picked is not { Count: 1 })

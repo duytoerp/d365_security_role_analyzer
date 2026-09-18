@@ -30,7 +30,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🏢 " />
                                 <TextBlock Text="{Binding Unit.Name}" FontWeight="SemiBold" />
-                                <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11.5" VerticalAlignment="Center" Margin="6,0,0,0">
+                                <TextBlock Foreground="{DynamicResource MutedTextBrush}" FontSize="11.5" VerticalAlignment="Center" Margin="6,0,0,0">
                                     <Run Text="{Binding UserCount, Mode=OneWay}" /> user · <Run Text="{Binding TeamCount, Mode=OneWay}" /> team
                                 </TextBlock>
                             </StackPanel>
@@ -46,7 +46,7 @@
             <Grid>
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                             Visibility="{Binding HasAnalysis, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
-                    <TextBlock Text="🏢" FontSize="48" HorizontalAlignment="Center" Foreground="#9FB3C8" />
+                    <TextBlock Text="🏢" FontSize="48" HorizontalAlignment="Center" Foreground="{DynamicResource HintBrush}" />
                     <TextBlock Text="Chọn một Business Unit để xem user, team, role đang dùng và phạm vi dữ liệu theo từng mức quyền" Style="{StaticResource EmptyHint}" Margin="0,8,0,0" />
                 </StackPanel>
 
@@ -66,7 +66,7 @@
                                     <ItemsControl ItemsSource="{Binding SummaryCards}" Style="{StaticResource SummaryCards}" />
                                     <TextBlock Text="Phạm vi dữ liệu theo mức quyền (với user thuộc BU này)" Style="{StaticResource SectionTitle}" Margin="0,6,0,6" />
                                     <Border Style="{StaticResource InfoBanner}" Margin="0,0,10,10">
-                                        <TextBlock Text="{Binding Analysis.ScopeText}" TextWrapping="Wrap" Foreground="#0B4A85" LineHeight="22" />
+                                        <TextBlock Text="{Binding Analysis.ScopeText}" TextWrapping="Wrap" Foreground="{DynamicResource InfoTextBrush}" LineHeight="22" />
                                     </Border>
                                     <TextBlock Text="{Binding FindingsHeader}" Style="{StaticResource SectionTitle}" Margin="0,6,0,8" />
                                     <ItemsControl ItemsSource="{Binding Analysis.Findings}" Style="{StaticResource Findings}" />
@@ -94,6 +94,10 @@
                         </TabItem>
 
                         <TabItem Header="{Binding TeamsTabHeader}">
+                            <DockPanel>
+                            <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Tìm team..." Width="300"
+                                     HorizontalAlignment="Left" Margin="0,0,0,8"
+                                     Text="{Binding TeamSearchText, UpdateSourceTrigger=PropertyChanged}" />
                             <DataGrid x:Name="TeamsGrid" ItemsSource="{Binding TeamsView}" ToolTip="Double-click để mở team">
                                 <DataGrid.InputBindings>
                                     <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenTeamCommand}" CommandParameter="{Binding CurrentItem, ElementName=TeamsGrid}" />
@@ -105,9 +109,14 @@
                                     <DataGridTextColumn Header="Số role" Binding="{Binding RoleCount}" Width="80" />
                                 </DataGrid.Columns>
                             </DataGrid>
+                            </DockPanel>
                         </TabItem>
 
                         <TabItem Header="{Binding RolesTabHeader}">
+                            <DockPanel>
+                            <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Tìm role..." Width="300"
+                                     HorizontalAlignment="Left" Margin="0,0,0,8"
+                                     Text="{Binding RoleSearchText, UpdateSourceTrigger=PropertyChanged}" />
                             <DataGrid x:Name="RolesGrid" ItemsSource="{Binding RoleUsageView}" ToolTip="Double-click để mở role">
                                 <DataGrid.InputBindings>
                                     <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenRoleCommand}" CommandParameter="{Binding CurrentItem, ElementName=RolesGrid}" />
@@ -119,6 +128,7 @@
                                     <DataGridTextColumn Header="Tổng user" Binding="{Binding TotalUserCount}" Width="100" />
                                 </DataGrid.Columns>
                             </DataGrid>
+                            </DockPanel>
                         </TabItem>
                     </TabControl>
                 </DockPanel>

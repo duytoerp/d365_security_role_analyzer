@@ -42,6 +42,9 @@ public sealed class AccessIndex
     public IEnumerable<Guid> TeamsWithRole(Guid roleId) => (_teamsByRole ??= TeamRoles.ToLookup(x => x.RoleId, x => x.TeamId))[roleId];
 
     public string RoleName(Guid roleId) => RoleById.TryGetValue(roleId, out var role) ? role.Name : roleId.ToString();
+
+    /// <summary>Role System Administrator, nhận diện theo template nên không phụ thuộc ngôn ngữ.</summary>
+    public bool IsAdminRole(Guid roleId) => RoleById.TryGetValue(roleId, out var role) && role.IsSystemAdministrator;
     public string TeamName(Guid teamId) => TeamById.TryGetValue(teamId, out var team) ? team.Name : teamId.ToString();
 
     /// <summary>Mọi role hiệu lực của user kèm nguồn (null = trực tiếp, Guid = team).</summary>

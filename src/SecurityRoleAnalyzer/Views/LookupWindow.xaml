@@ -7,7 +7,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:LookupViewModel}"
         Title="Tra cứu ngược: ai có quyền này?" Width="1300" Height="800" WindowStartupLocation="CenterOwner"
-        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource AppBackgroundBrush}">
+        FontFamily="Segoe UI" FontSize="13" Background="{DynamicResource AppBackgroundBrush}">
     <Grid>
         <DockPanel Margin="12">
             <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="4,8,0,0" />
@@ -47,7 +47,11 @@
                         </DockPanel>
                         <TabControl>
                             <TabItem Header="Security Roles">
-                                <DataGrid x:Name="RolesGrid" ItemsSource="{Binding Roles}" ToolTip="Double-click để mở role">
+                                <DockPanel>
+                                <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Lọc role..." Width="280"
+                                         HorizontalAlignment="Left" Margin="0,0,0,8"
+                                         Text="{Binding RoleFilterText, UpdateSourceTrigger=PropertyChanged}" />
+                                <DataGrid x:Name="RolesGrid" ItemsSource="{Binding RolesView}" ToolTip="Double-click để mở role">
                                     <DataGrid.InputBindings>
                                         <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenRoleCommand}" CommandParameter="{Binding CurrentItem, ElementName=RolesGrid}" />
                                     </DataGrid.InputBindings>
@@ -60,9 +64,14 @@
                                         <DataGridTextColumn Header="Managed" Binding="{Binding ManagedText}" Width="100" />
                                     </DataGrid.Columns>
                                 </DataGrid>
+                                </DockPanel>
                             </TabItem>
                             <TabItem Header="Teams">
-                                <DataGrid x:Name="TeamsGrid" ItemsSource="{Binding Teams}" ToolTip="Double-click để mở team">
+                                <DockPanel>
+                                <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Lọc team..." Width="280"
+                                         HorizontalAlignment="Left" Margin="0,0,0,8"
+                                         Text="{Binding TeamFilterText, UpdateSourceTrigger=PropertyChanged}" />
+                                <DataGrid x:Name="TeamsGrid" ItemsSource="{Binding TeamsView}" ToolTip="Double-click để mở team">
                                     <DataGrid.InputBindings>
                                         <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenPrincipalCommand}" CommandParameter="{Binding CurrentItem, ElementName=TeamsGrid}" />
                                     </DataGrid.InputBindings>
@@ -74,10 +83,15 @@
                                         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Qua role" Binding="{Binding Via}" Width="*" />
                                     </DataGrid.Columns>
                                 </DataGrid>
+                                </DockPanel>
                             </TabItem>
                             <TabItem Header="Users">
                                 <DockPanel>
-                                    <CheckBox DockPanel.Dock="Top" Content="Ẩn user disabled" IsChecked="{Binding HideDisabledUsers}" Margin="0,0,0,8" HorizontalAlignment="Left" />
+                                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                        <CheckBox DockPanel.Dock="Right" Content="Ẩn user disabled" IsChecked="{Binding HideDisabledUsers}" VerticalAlignment="Center" />
+                                        <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Lọc user..." Width="280" HorizontalAlignment="Left"
+                                                 Text="{Binding UserFilterText, UpdateSourceTrigger=PropertyChanged}" />
+                                    </DockPanel>
                                     <DataGrid x:Name="UsersGrid" ItemsSource="{Binding UsersView}" ToolTip="Double-click để mở user">
                                         <DataGrid.InputBindings>
                                             <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenPrincipalCommand}" CommandParameter="{Binding CurrentItem, ElementName=UsersGrid}" />
@@ -99,7 +113,7 @@
             </Grid>
         </DockPanel>
 
-        <Grid Background="#99F3F5F8" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+        <Grid Background="{DynamicResource OverlayBrush}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
             <Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,20" MinWidth="360">
                 <StackPanel>
                     <TextBlock Text="{Binding BusyText}" HorizontalAlignment="Center" TextWrapping="Wrap" />

@@ -183,6 +183,7 @@ public sealed class RoleAnalyzer(DataverseService service)
 
         // Forms & dashboards: displayconditions.
         var forms = await TryAsync(() => service.GetFormsAsync(ct), [], "Form/Dashboard", warnings);
+        var unreadableForms = 0;
         foreach (var form in forms)
         {
             var isDashboard = form.Type is 0 or 10 or 103;
@@ -197,10 +198,15 @@ public sealed class RoleAnalyzer(DataverseService service)
                 continue;
             else if (!roleAssignable)
                 reason = "Loại form không phân quyền theo role – truy cập theo quyền Read entity";
+            else if (form.DisplayConditionsUnreadable)
+                reason = "⚠ Không đọc được cấu hình role của form – cần kiểm tra trực tiếp trong D365";
             else if (form.VisibleToEveryone)
                 reason = "Form hiển thị cho mọi role (Display to everyone)";
             else
                 continue;
+
+            if (form.DisplayConditionsUnreadable)
+                unreadableForms++;
 
             components.Add(new RoleComponent
             {
@@ -215,6 +221,12 @@ public sealed class RoleAnalyzer(DataverseService service)
                 IsManaged = form.IsManaged,
                 State = form.ActivationState == 1 ? "Active" : "Inactive",
             });
+        }
+
+        if (unreadableForms > 0)
+        {
+            warnings.Add($"{unreadableForms} form có cấu hình role (displayconditions) không đọc được – " +
+                         "danh sách role của các form này cần kiểm tra trực tiếp trong D365.");
         }
 
         // Views & charts: không phân quyền theo role, phụ thuộc quyền Read của entity.

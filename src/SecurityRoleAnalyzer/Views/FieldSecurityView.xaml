@@ -25,7 +25,7 @@
                         <DataTemplate DataType="{x:Type m:FieldSecurityProfileInfo}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding ManagedText}" Foreground="{StaticResource MutedTextBrush}" FontSize="11.5" />
+                                <TextBlock Text="{Binding ManagedText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11.5" />
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -39,7 +39,7 @@
             <Grid>
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                             Visibility="{Binding HasAnalysis, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
-                    <TextBlock Text="🔒" FontSize="48" HorizontalAlignment="Center" Foreground="#9FB3C8" />
+                    <TextBlock Text="🔒" FontSize="48" HorizontalAlignment="Center" Foreground="{DynamicResource HintBrush}" />
                     <TextBlock Text="Chọn một Field Security Profile để xem cột được bảo mật và user/team được gán" Style="{StaticResource EmptyHint}" Margin="0,8,0,0" />
                 </StackPanel>
 
@@ -85,10 +85,14 @@
 
                         <TabItem Header="{Binding UsersTabHeader}">
                             <DockPanel>
-                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,8">
-                                    <Button Content="＋ Thêm user" Command="{Binding AddUsersCommand}" Style="{StaticResource PrimaryButton}" />
-                                    <Button Content="Gỡ user đã chọn" Command="{Binding RemoveUsersCommand}" Style="{StaticResource DangerButton}" />
-                                </StackPanel>
+                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="＋ Thêm user" Command="{Binding AddUsersCommand}" Style="{StaticResource PrimaryButton}" />
+                                        <Button Content="Gỡ user đã chọn" Command="{Binding RemoveUsersCommand}" Style="{StaticResource DangerButton}" />
+                                    </StackPanel>
+                                    <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Tìm user..." Width="300" HorizontalAlignment="Left"
+                                             Text="{Binding UserSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                </DockPanel>
                                 <DataGrid x:Name="UsersGrid" ItemsSource="{Binding UsersView}" SelectionMode="Extended" ToolTip="Double-click để mở user"
                                           c:GridSelection.Enabled="True" c:GridSelection.SelectedItems="{Binding SelectedUsers, Mode=OneWayToSource}">
                                     <DataGrid.InputBindings>
@@ -107,10 +111,14 @@
 
                         <TabItem Header="{Binding TeamsTabHeader}">
                             <DockPanel>
-                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,8">
-                                    <Button Content="＋ Thêm team" Command="{Binding AddTeamsCommand}" Style="{StaticResource PrimaryButton}" />
-                                    <Button Content="Gỡ team đã chọn" Command="{Binding RemoveTeamsCommand}" Style="{StaticResource DangerButton}" />
-                                </StackPanel>
+                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="＋ Thêm team" Command="{Binding AddTeamsCommand}" Style="{StaticResource PrimaryButton}" />
+                                        <Button Content="Gỡ team đã chọn" Command="{Binding RemoveTeamsCommand}" Style="{StaticResource DangerButton}" />
+                                    </StackPanel>
+                                    <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Tìm team..." Width="300" HorizontalAlignment="Left"
+                                             Text="{Binding TeamSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                </DockPanel>
                                 <DataGrid x:Name="TeamsGrid" ItemsSource="{Binding TeamsView}" SelectionMode="Extended" ToolTip="Double-click để mở team"
                                           c:GridSelection.Enabled="True" c:GridSelection.SelectedItems="{Binding SelectedTeams, Mode=OneWayToSource}">
                                     <DataGrid.InputBindings>
@@ -127,6 +135,10 @@
                         </TabItem>
 
                         <TabItem Header="{Binding EffectiveTabHeader}">
+                            <DockPanel>
+                            <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Tìm user hoặc nguồn..." Width="320"
+                                     HorizontalAlignment="Left" Margin="0,0,0,8"
+                                     Text="{Binding EffectiveSearchText, UpdateSourceTrigger=PropertyChanged}" />
                             <DataGrid x:Name="EffectiveGrid" ItemsSource="{Binding EffectiveView}" ToolTip="Double-click để mở user">
                                 <DataGrid.InputBindings>
                                     <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenUserCommand}" CommandParameter="{Binding CurrentItem, ElementName=EffectiveGrid}" />
@@ -139,6 +151,7 @@
                                     <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Nguồn" Binding="{Binding Via}" Width="*" />
                                 </DataGrid.Columns>
                             </DataGrid>
+                            </DockPanel>
                         </TabItem>
                     </TabControl>
                 </DockPanel>

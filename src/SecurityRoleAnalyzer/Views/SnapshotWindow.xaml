@@ -6,14 +6,14 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:SnapshotViewModel}"
         Title="Snapshot &amp; so sánh môi trường" Width="1300" Height="820" WindowStartupLocation="CenterOwner"
-        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource AppBackgroundBrush}">
+        FontFamily="Segoe UI" FontSize="13" Background="{DynamicResource AppBackgroundBrush}">
     <Grid>
         <Border Style="{StaticResource Card}" Margin="12">
             <DockPanel>
                 <Border DockPanel.Dock="Top" Style="{StaticResource InfoBanner}">
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="📸 Chụp môi trường hiện tại &amp; lưu file" Command="{Binding CaptureAndSaveCommand}" Style="{StaticResource PrimaryButton}" />
-                        <TextBlock TextWrapping="Wrap" Foreground="#0B4A85" VerticalAlignment="Center"
+                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource InfoTextBrush}" VerticalAlignment="Center"
                                    Text="Snapshot lưu role, privilege, gán role cho user/team và thành viên team (theo tên, để so sánh giữa Dev ↔ UAT ↔ Prod hoặc giữa hai thời điểm)." />
                     </DockPanel>
                 </Border>
@@ -25,9 +25,9 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <Border Background="{StaticResource SubtleBrush}" CornerRadius="6" Padding="10,8">
+                    <Border Background="{DynamicResource SubtleBrush}" CornerRadius="6" Padding="10,8">
                         <StackPanel>
-                            <TextBlock Text="A – TRƯỚC / NGUỒN" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
+                            <TextBlock Text="A – TRƯỚC / NGUỒN" FontWeight="SemiBold" Foreground="{DynamicResource MutedTextBrush}" />
                             <TextBlock Text="{Binding SnapshotAText}" FontSize="14" FontWeight="SemiBold" Margin="0,4" TextTrimming="CharacterEllipsis" />
                             <StackPanel Orientation="Horizontal">
                                 <Button Content="Mở file..." Command="{Binding LoadACommand}" Margin="0" />
@@ -35,9 +35,9 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
-                    <Border Grid.Column="2" Background="{StaticResource SubtleBrush}" CornerRadius="6" Padding="10,8">
+                    <Border Grid.Column="2" Background="{DynamicResource SubtleBrush}" CornerRadius="6" Padding="10,8">
                         <StackPanel>
-                            <TextBlock Text="B – SAU / ĐÍCH" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
+                            <TextBlock Text="B – SAU / ĐÍCH" FontWeight="SemiBold" Foreground="{DynamicResource MutedTextBrush}" />
                             <TextBlock Text="{Binding SnapshotBText}" FontSize="14" FontWeight="SemiBold" Margin="0,4" TextTrimming="CharacterEllipsis" />
                             <StackPanel Orientation="Horizontal">
                                 <Button Content="Mở file..." Command="{Binding LoadBCommand}" Margin="0" />
@@ -73,7 +73,7 @@
             </DockPanel>
         </Border>
 
-        <Grid Background="#99F3F5F8" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+        <Grid Background="{DynamicResource OverlayBrush}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
             <Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,20" MinWidth="360">
                 <StackPanel>
                     <TextBlock Text="{Binding BusyText}" HorizontalAlignment="Center" TextWrapping="Wrap" />

@@ -28,6 +28,33 @@ public sealed class DepthColumn : DataGridTemplateColumn
     {
         Width = new DataGridLength(72);
         CanUserSort = true;
+        CellStyle = BuildCellStyle();
+    }
+
+    /// <summary>Bàn phím: +/Space nâng mức, -/Backspace hạ mức, để không chỉ dùng được bằng chuột.</summary>
+    private Style BuildCellStyle()
+    {
+        var style = new Style(typeof(DataGridCell), Application.Current?.TryFindResource(typeof(DataGridCell)) as Style);
+        style.Setters.Add(new EventSetter(UIElement.PreviewKeyDownEvent, new KeyEventHandler(OnCellKeyDown)));
+        return style;
+    }
+
+    private void OnCellKeyDown(object sender, KeyEventArgs e)
+    {
+        var backward = e.Key switch
+        {
+            Key.Add or Key.OemPlus or Key.Space => false,
+            Key.Subtract or Key.OemMinus or Key.Back => true,
+            _ => (bool?)null,
+        };
+        if (backward is null || sender is not DataGridCell { DataContext: { } row })
+            return;
+
+        if (FindGrid(sender as DependencyObject) is DataGrid { DataContext: IPrivilegeEditHost { IsEditingPrivileges: true } host })
+        {
+            host.CycleDepth(row, CellPath, backward.Value);
+            e.Handled = true;
+        }
     }
 
     /// <summary>Đường dẫn binding tới thuộc tính PrivilegeCell/PrivilegeDepth của dòng.</summary>
@@ -52,6 +79,20 @@ public sealed class DepthColumn : DataGridTemplateColumn
         }
     } = true;
 
+    /// <summary>
+    /// Đường dẫn tới cờ "đã sửa" của dòng, dùng để tô nền ô. Chỉ đặt khi dòng thực sự có thuộc tính này;
+    /// để trống thì ô không tô nền (tránh binding hỏng ở các lưới chỉ đọc).
+    /// </summary>
+    public string ChangedPath
+    {
+        get;
+        set
+        {
+            field = value;
+            BuildTemplate();
+        }
+    } = "";
+
     private void BuildTemplate()
     {
         var path = CellPath;
@@ -61,11 +102,15 @@ public sealed class DepthColumn : DataGridTemplateColumn
         var border = new FrameworkElementFactory(typeof(Border));
         border.SetValue(Border.CornerRadiusProperty, new CornerRadius(3));
         border.SetValue(FrameworkElement.MarginProperty, new Thickness(-6, 1, -6, 1));
-        border.SetBinding(Border.BackgroundProperty, new Binding(IsPrivilegeCell ? path + ".IsChanged" : "IsChanged")
+        var changedPath = IsPrivilegeCell ? path + ".IsChanged" : ChangedPath;
+        if (!string.IsNullOrEmpty(changedPath))
         {
-            Converter = ChangedBrushConverter.Instance,
-            FallbackValue = Brushes.Transparent,
-        });
+            border.SetBinding(Border.BackgroundProperty, new Binding(changedPath)
+            {
+                Converter = ChangedBrushConverter.Instance,
+                FallbackValue = Brushes.Transparent,
+            });
+        }
         border.AddHandler(UIElement.MouseLeftButtonUpEvent, new MouseButtonEventHandler((s, e) => OnCellClick(s, e, false)));
         border.AddHandler(UIElement.MouseRightButtonUpEvent, new MouseButtonEventHandler((s, e) => OnCellClick(s, e, true)));
 
@@ -96,14 +141,17 @@ public sealed class DepthColumn : DataGridTemplateColumn
         if (sender is not FrameworkElement element || element.DataContext is null)
             return;
 
-        DependencyObject? node = element;
-        while (node is not null and not DataGrid)
-            node = VisualTreeHelper.GetParent(node);
-
-        if (node is DataGrid { DataContext: IPrivilegeEditHost { IsEditingPrivileges: true } host })
+        if (FindGrid(element) is DataGrid { DataContext: IPrivilegeEditHost { IsEditingPrivileges: true } host })
         {
             host.CycleDepth(element.DataContext, CellPath, backward);
             e.Handled = true;
         }
+    }
+
+    private static DataGrid? FindGrid(DependencyObject? node)
+    {
+        while (node is not null and not DataGrid)
+            node = VisualTreeHelper.GetParent(node);
+        return node as DataGrid;
     }
 }

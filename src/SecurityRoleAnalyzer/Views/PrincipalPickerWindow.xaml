@@ -3,11 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:c="clr-namespace:SecurityRoleAnalyzer.Controls"
         Title="Chọn" Width="760" Height="560" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
-        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource SurfaceBrush}">
+        FontFamily="Segoe UI" FontSize="13" Background="{DynamicResource SurfaceBrush}">
     <DockPanel Margin="16">
         <TextBlock x:Name="HeaderText" DockPanel.Dock="Top" Style="{StaticResource SectionTitle}" />
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
             <Button DockPanel.Dock="Right" Content="Tìm" Click="OnSearch" MinWidth="80" IsDefault="True" />
+            <Button x:Name="LoadMoreButton" DockPanel.Dock="Right" Content="Tải thêm" Click="OnLoadMore" MinWidth="90"
+                    Visibility="Collapsed" ToolTip="Lấy thêm kết quả nếu danh sách bị cắt bớt" />
             <TextBox x:Name="SearchBox" Style="{StaticResource SearchBox}" Tag="Nhập tên để tìm (Enter)..." />
         </DockPanel>
         <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">

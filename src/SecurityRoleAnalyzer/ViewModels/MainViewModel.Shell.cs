@@ -293,6 +293,84 @@ public sealed partial class MainViewModel
         Process.Start(new ProcessStartInfo(ConnectionProfileStore.AppDataFolder) { UseShellExecute = true });
     }
 
+    [RelayCommand]
+    private void OpenErrorLog()
+    {
+        if (!File.Exists(ErrorLog.FilePath))
+        {
+            StatusText = "Chưa có lỗi nào được ghi lại.";
+            return;
+        }
+        Process.Start(new ProcessStartInfo(ErrorLog.FilePath) { UseShellExecute = true });
+    }
+
+    #endregion
+
+    #region Giao diện & phím tắt
+
+    public bool IsThemeSystem => Theme.Selected == AppTheme.System;
+    public bool IsThemeLight => Theme.Selected == AppTheme.Light;
+    public bool IsThemeDark => Theme.Selected == AppTheme.Dark;
+
+    [RelayCommand]
+    private void SetTheme(string? name)
+    {
+        if (!Enum.TryParse<AppTheme>(name, out var theme))
+            return;
+
+        Theme.Apply(theme);
+        var settings = AppSettings.Current;
+        settings.Theme = theme;
+        settings.Save();
+
+        OnPropertyChanged(nameof(IsThemeSystem));
+        OnPropertyChanged(nameof(IsThemeLight));
+        OnPropertyChanged(nameof(IsThemeDark));
+        StatusText = $"Giao diện: {Theme.ToText(theme)}";
+    }
+
+    [RelayCommand]
+    private void SetMode(string? name)
+    {
+        if (Enum.TryParse<AppMode>(name, out var mode))
+            Mode = mode;
+    }
+
+    /// <summary>Ctrl+F: đưa con trỏ về ô tìm kiếm của chế độ đang mở.</summary>
+    public event Action? SearchFocusRequested;
+
+    [RelayCommand]
+    private void FocusSearch() => SearchFocusRequested?.Invoke();
+
+    /// <summary>Ctrl+Shift+C: chép dòng đang chọn (kèm Id) ra clipboard.</summary>
+    [RelayCommand]
+    private void CopySelection()
+    {
+        var text = Mode switch
+        {
+            AppMode.Roles => SelectedRole is { } role ? $"{role.Name}\t{role.Id}\t{role.BusinessUnitName}" : null,
+            AppMode.Teams => TeamManager.SelectedTeam is { } team ? $"{team.Name}\t{team.Id}\t{team.BusinessUnitName}" : null,
+            AppMode.Users => UserManager.SelectedUser is { } user ? $"{user.FullName}\t{user.Id}\t{user.DomainName}" : null,
+            AppMode.Apps => AppManager.SelectedApp is { } app ? $"{app.Name}\t{app.Id}\t{app.UniqueName}" : null,
+            AppMode.FieldSecurity => FieldSecurity.SelectedProfile is { } profile ? $"{profile.Name}\t{profile.Id}" : null,
+            AppMode.BusinessUnits => BusinessUnits.SelectedNode is { } node ? $"{node.Unit.Name}\t{node.Unit.Id}" : null,
+            _ => null,
+        };
+
+        if (text is null)
+        {
+            StatusText = "Chưa chọn mục nào để sao chép.";
+            return;
+        }
+
+        StatusText = Dialogs.CopyToClipboard(text)
+            ? "Đã sao chép: " + text.Split('\t')[0]
+            : "Không sao chép được vào clipboard.";
+    }
+
+    [RelayCommand]
+    private static void ShowShortcuts() => ShortcutsWindow.Show(App.Current.MainWindow);
+
     /// <summary>Hỏi nơi lưu, dựng workbook và mở file sau khi xuất.</summary>
     internal void ExportWorkbook(string baseName, Action<XLWorkbook> build)
     {

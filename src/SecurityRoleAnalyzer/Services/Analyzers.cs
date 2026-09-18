@@ -34,7 +34,7 @@ public sealed class UserAnalyzer(DataverseService service)
 
         var (entityRows, miscRows) = TeamAnalyzer.MergePrivileges(
             catalog,
-            all.Select(r => (SourceLabel(r), privilegesByRole[r.RootRoleId])),
+            all.Select(r => (SourceLabel(r), privilegesByRole[r.RootRoleId], r.IsInherited)),
             metadata);
 
         progress?.Report("Đang tải app và field security profile...");
@@ -71,9 +71,8 @@ public sealed class UserAnalyzer(DataverseService service)
 
     public static string SourceLabel(UserRoleAssignment role) => role.IsDirect ? role.Name : $"{role.Name} [team {role.TeamName}]";
 
-    public static bool IsSystemAdministrator(string roleName) =>
-        roleName.Equals("System Administrator", StringComparison.OrdinalIgnoreCase)
-        || roleName.Equals("Quản trị viên hệ thống", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Dự phòng khi chỉ biết tên role; ưu tiên dùng <see cref="UserRoleAssignment.IsSystemAdministrator"/>.</summary>
+    public static bool IsSystemAdministrator(string roleName) => RoleTemplates.IsAdminName(roleName);
 
     public static IEnumerable<AnalysisFinding> BuildFindings(UserAnalysis analysis)
     {
@@ -100,7 +99,20 @@ public sealed class UserAnalyzer(DataverseService service)
             };
         }
 
-        var admin = roles.Where(r => IsSystemAdministrator(r.Name)).ToList();
+        var teamScoped = roles.Where(r => r.IsTeamScopedOnly).ToList();
+        if (teamScoped.Count > 0)
+        {
+            yield return new AnalysisFinding
+            {
+                Severity = FindingSeverity.Info,
+                Title = $"{teamScoped.Count} role qua team chỉ áp dụng trên record của team",
+                Detail = "Các role này được gán ở chế độ \"Team privileges only\", nên quyền mức User "
+                         + "không áp dụng cho record của chính user: "
+                         + RoleAnalyzer.Names(teamScoped.Select(r => $"{r.Name} [{r.TeamName}]")),
+            };
+        }
+
+        var admin = roles.Where(r => r.IsSystemAdministrator).ToList();
         if (admin.Count > 0)
         {
             yield return new AnalysisFinding
@@ -399,7 +411,7 @@ public static class AccessReviewBuilder
             var direct = index.DirectRolesOf(user.Id).Distinct().ToList();
             var viaTeam = index.EffectiveRolesOf(user.Id).Where(r => r.TeamId is not null).ToList();
             var effective = direct.Concat(viaTeam.Select(r => r.RoleId)).Distinct().ToList();
-            var isAdmin = effective.Any(id => UserAnalyzer.IsSystemAdministrator(index.RoleName(id)));
+            var isAdmin = effective.Any(index.IsAdminRole);
 
             var flags = new List<string>();
             if (effective.Count == 0 && !user.IsDisabled) flags.Add("Không có role");

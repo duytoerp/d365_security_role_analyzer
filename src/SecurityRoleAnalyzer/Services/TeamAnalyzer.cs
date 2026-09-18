@@ -25,7 +25,7 @@ public sealed class TeamAnalyzer(DataverseService service)
 
         var (entityRows, miscRows) = MergePrivileges(
             catalog,
-            roles.DistinctBy(r => r.RootRoleId).Select(r => (r.Name, privilegesByRole[r.RootRoleId])),
+            roles.DistinctBy(r => r.RootRoleId).Select(r => (r.Name, privilegesByRole[r.RootRoleId], r.IsInherited)),
             metadata);
         FillRoleStatistics(roles, privilegesByRole, catalog);
 
@@ -66,12 +66,22 @@ public sealed class TeamAnalyzer(DataverseService service)
     public static (List<EntityPrivilegeRow> Entities, List<MiscPrivilegeRow> Misc) MergePrivileges(
         IEnumerable<PrivilegeDefinition> catalog,
         IEnumerable<(string RoleName, Dictionary<Guid, PrivilegeDepth> Privileges)> roles,
+        IReadOnlyDictionary<string, EntityInfo> metadata) =>
+        MergePrivileges(catalog, roles.Select(r => (r.RoleName, r.Privileges, true)), metadata);
+
+    /// <summary>
+    /// Gộp privilege của nhiều role. <c>TeamScopedOnly</c> đánh dấu role được gán cho team ở chế độ
+    /// "Team privileges only": quyền chỉ có hiệu lực trên record do team sở hữu.
+    /// </summary>
+    public static (List<EntityPrivilegeRow> Entities, List<MiscPrivilegeRow> Misc) MergePrivileges(
+        IEnumerable<PrivilegeDefinition> catalog,
+        IEnumerable<(string RoleName, Dictionary<Guid, PrivilegeDepth> Privileges, bool Inherited)> roles,
         IReadOnlyDictionary<string, EntityInfo> metadata)
     {
         var merged = new Dictionary<Guid, PrivilegeDepth>();
         var sources = new Dictionary<Guid, List<string>>();
 
-        foreach (var (roleName, privileges) in roles)
+        foreach (var (roleName, privileges, inherited) in roles)
         {
             foreach (var (privilegeId, depth) in privileges)
             {
@@ -81,7 +91,8 @@ public sealed class TeamAnalyzer(DataverseService service)
                     merged[privilegeId] = depth;
                 if (!sources.TryGetValue(privilegeId, out var list))
                     sources[privilegeId] = list = [];
-                list.Add($"{roleName} ({depth.ToText()})");
+                var note = inherited ? "" : ", chỉ record của team";
+                list.Add($"{roleName} ({depth.ToText()}{note})");
             }
         }
 
@@ -127,6 +138,18 @@ public sealed class TeamAnalyzer(DataverseService service)
                     Title = "Team chưa có security role",
                     Detail = "Thành viên không nhận thêm quyền nào từ team.",
                 };
+        }
+
+        var teamScoped = analysis.Roles.Where(r => !r.IsInherited).ToList();
+        if (teamScoped.Count > 0)
+        {
+            yield return new AnalysisFinding
+            {
+                Severity = FindingSeverity.Info,
+                Title = $"{teamScoped.Count} role ở chế độ \"Team privileges only\"",
+                Detail = "Quyền của các role này chỉ áp dụng trên record do team sở hữu; thành viên không nhận "
+                         + "quyền mức User cho record của chính mình: " + RoleAnalyzer.Names(teamScoped.Select(r => r.Name)),
+            };
         }
 
         if (TeamTypes.IsEntraGroup(team.TeamType))

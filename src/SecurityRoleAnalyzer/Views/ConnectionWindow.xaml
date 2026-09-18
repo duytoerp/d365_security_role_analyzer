@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Kết nối Dynamics 365 / Dataverse" Width="600" SizeToContent="Height"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
-        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource SurfaceBrush}">
+        FontFamily="Segoe UI" FontSize="13" Background="{DynamicResource SurfaceBrush}">
     <StackPanel Margin="20">
         <TextBlock Text="Kết nối tới môi trường" Style="{StaticResource SectionTitle}" FontSize="17" />
 

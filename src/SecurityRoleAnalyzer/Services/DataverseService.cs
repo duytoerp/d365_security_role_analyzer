@@ -18,6 +18,9 @@ public sealed partial class DataverseService : IDisposable
 {
     private const int PageSize = 5000;
 
+    /// <summary>Số kết quả tối đa cho hộp tìm user/team; hộp thoại có nút tải thêm để nâng giới hạn.</summary>
+    public const int DefaultSearchTop = 100;
+
     private readonly ServiceClient _client;
     private readonly ConcurrentDictionary<string, Lazy<Task<object>>> _cache = new();
 
@@ -82,6 +85,8 @@ public sealed partial class DataverseService : IDisposable
                 <attribute name="businessunitid" />
                 <attribute name="ismanaged" />
                 <attribute name="modifiedon" />
+                <attribute name="isinherited" />
+                <attribute name="roletemplateid" />
                 <filter>
                   <condition attribute="parentroleid" operator="null" />
                 </filter>
@@ -99,6 +104,9 @@ public sealed partial class DataverseService : IDisposable
             BusinessUnitName = e.GetAttributeValue<EntityReference>("businessunitid")?.Name ?? "",
             IsManaged = e.GetAttributeValue<bool>("ismanaged"),
             ModifiedOn = e.GetAttributeValue<DateTime?>("modifiedon")?.ToLocalTime(),
+            // isinherited: 0 = chỉ quyền team, 1 = quyền mức User + quyền team (mặc định).
+            IsInherited = (e.GetAttributeValue<OptionSetValue>("isinherited")?.Value ?? 1) != 0,
+            RoleTemplateId = IdOf(e, "roletemplateid") is var t && t != Guid.Empty ? t : null,
         }).ToList();
     }
 
@@ -160,7 +168,7 @@ public sealed partial class DataverseService : IDisposable
                 StringComparer.OrdinalIgnoreCase);
             DiskCache.Save(EnvironmentKey, "entities", result);
             return result;
-        });
+        }, ct);
 
     /// <summary>Danh mục toàn bộ privilege trong hệ thống (mỗi cặp privilege–entity là một dòng).</summary>
     public Task<List<PrivilegeDefinition>> GetPrivilegeCatalogAsync(CancellationToken ct = default) =>
@@ -207,7 +215,7 @@ public sealed partial class DataverseService : IDisposable
             }).ToList();
             DiskCache.Save(EnvironmentKey, "privileges", catalog);
             return catalog;
-        });
+        }, ct);
 
     /// <summary>Privilege mà role đang có, key = privilegeid.</summary>
     public async Task<Dictionary<Guid, PrivilegeDepth>> GetRolePrivilegesAsync(Guid roleId, CancellationToken ct = default)
@@ -241,7 +249,7 @@ public sealed partial class DataverseService : IDisposable
 
     public async Task<List<RoleUser>> GetRoleUsersAsync(IEnumerable<Guid> roleIds, CancellationToken ct = default)
     {
-        var fetch = $"""
+        var entities = await FetchChunkedAsync("roleid", roleIds, condition => $"""
             <fetch>
               <entity name="systemuser">
                 <attribute name="systemuserid" />
@@ -254,14 +262,14 @@ public sealed partial class DataverseService : IDisposable
                 <link-entity name="systemuserroles" from="systemuserid" to="systemuserid" intersect="true" alias="sur">
                   <attribute name="roleid" />
                   <filter>
-                    {InCondition("roleid", roleIds)}
+                    {condition}
                   </filter>
                 </link-entity>
               </entity>
             </fetch>
-            """;
+            """, ct);
 
-        return (await FetchAllAsync(fetch, ct))
+        return entities
             .Select(e => new RoleUser
             {
                 Id = e.Id,
@@ -278,7 +286,7 @@ public sealed partial class DataverseService : IDisposable
 
     public async Task<List<RoleTeam>> GetRoleTeamsAsync(IEnumerable<Guid> roleIds, CancellationToken ct = default)
     {
-        var fetch = $"""
+        var entities = await FetchChunkedAsync("roleid", roleIds, condition => $"""
             <fetch>
               <entity name="team">
                 <attribute name="teamid" />
@@ -290,14 +298,14 @@ public sealed partial class DataverseService : IDisposable
                 <link-entity name="teamroles" from="teamid" to="teamid" intersect="true" alias="tr">
                   <attribute name="roleid" />
                   <filter>
-                    {InCondition("roleid", roleIds)}
+                    {condition}
                   </filter>
                 </link-entity>
               </entity>
             </fetch>
-            """;
+            """, ct);
 
-        return (await FetchAllAsync(fetch, ct))
+        return entities
             .Select(e => new RoleTeam
             {
                 Id = e.Id,
@@ -361,11 +369,11 @@ public sealed partial class DataverseService : IDisposable
         return result.DistinctBy(r => (r.UserId, r.TeamId)).ToList();
     }
 
-    public async Task<List<PrincipalSearchResult>> SearchUsersAsync(string text, CancellationToken ct = default)
+    public async Task<List<PrincipalSearchResult>> SearchUsersAsync(string text, int top = DefaultSearchTop, CancellationToken ct = default)
     {
         var like = SecurityElement.Escape($"%{text.Trim()}%");
         var fetch = $"""
-            <fetch top="100">
+            <fetch top="{top}">
               <entity name="systemuser">
                 <attribute name="systemuserid" />
                 <attribute name="fullname" />
@@ -394,11 +402,11 @@ public sealed partial class DataverseService : IDisposable
         }).ToList();
     }
 
-    public async Task<List<PrincipalSearchResult>> SearchTeamsAsync(string text, CancellationToken ct = default)
+    public async Task<List<PrincipalSearchResult>> SearchTeamsAsync(string text, int top = DefaultSearchTop, CancellationToken ct = default)
     {
         var like = SecurityElement.Escape($"%{text.Trim()}%");
         var fetch = $"""
-            <fetch top="100">
+            <fetch top="{top}">
               <entity name="team">
                 <attribute name="teamid" />
                 <attribute name="name" />
@@ -495,6 +503,7 @@ public sealed partial class DataverseService : IDisposable
                 <attribute name="businessunitid" />
                 <attribute name="parentrootroleid" />
                 <attribute name="ismanaged" />
+                <attribute name="isinherited" />
                 <order attribute="name" />
                 <link-entity name="teamroles" from="roleid" to="roleid" intersect="true">
                   <filter>
@@ -513,6 +522,7 @@ public sealed partial class DataverseService : IDisposable
                 Name = e.GetAttributeValue<string>("name") ?? "",
                 BusinessUnitName = e.GetAttributeValue<EntityReference>("businessunitid")?.Name ?? "",
                 IsManaged = e.GetAttributeValue<bool>("ismanaged"),
+                IsInherited = (e.GetAttributeValue<OptionSetValue>("isinherited")?.Value ?? 1) != 0,
             })
             .DistinctBy(r => r.AssignedRoleId)
             .ToList();
@@ -561,7 +571,7 @@ public sealed partial class DataverseService : IDisposable
 
     public sealed record FormInfo(
         Guid Id, string Name, string Entity, int Type, bool IsManaged, int ActivationState,
-        HashSet<Guid> RoleIds, bool VisibleToEveryone);
+        HashSet<Guid> RoleIds, bool VisibleToEveryone, bool DisplayConditionsUnreadable = false);
 
     public sealed record ViewInfo(Guid Id, string Name, string Entity, int QueryType, bool IsDefault, bool IsManaged, int State);
 
@@ -573,22 +583,20 @@ public sealed partial class DataverseService : IDisposable
 
     public async Task<List<AppInfo>> GetAppsForRoleAsync(IReadOnlyCollection<Guid> roleIds, CancellationToken ct = default)
     {
-        var fetch = $"""
-            <fetch>
-              <entity name="appmoduleroles">
-                <attribute name="appmoduleid" />
-                <attribute name="roleid" />
-                <filter>
-                  {InCondition("roleid", roleIds)}
-                </filter>
-              </entity>
-            </fetch>
-            """;
-
         HashSet<Guid> appIds;
         try
         {
-            appIds = (await FetchAllAsync(fetch, ct))
+            appIds = (await FetchChunkedAsync("roleid", roleIds, condition => $"""
+                <fetch>
+                  <entity name="appmoduleroles">
+                    <attribute name="appmoduleid" />
+                    <attribute name="roleid" />
+                    <filter>
+                      {condition}
+                    </filter>
+                  </entity>
+                </fetch>
+                """, ct))
                 .Select(e => IdOf(e, "appmoduleid"))
                 .Where(id => id != Guid.Empty)
                 .ToHashSet();
@@ -596,19 +604,19 @@ public sealed partial class DataverseService : IDisposable
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Một số môi trường không cho RetrieveMultiple trực tiếp trên bảng trung gian → dùng link-entity.
-            var linked = $"""
+            // Nếu cách này cũng lỗi thì để lỗi nổi lên, tránh im lặng nuốt lỗi phân quyền.
+            appIds = (await FetchChunkedAsync("roleid", roleIds, condition => $"""
                 <fetch distinct="true">
                   <entity name="appmodule">
                     <attribute name="appmoduleid" />
                     <link-entity name="appmoduleroles" from="appmoduleid" to="appmoduleid" intersect="true">
                       <filter>
-                        {InCondition("roleid", roleIds)}
+                        {condition}
                       </filter>
                     </link-entity>
                   </entity>
                 </fetch>
-                """;
-            appIds = (await FetchAllAsync(linked, ct)).Select(e => e.Id).ToHashSet();
+                """, ct)).Select(e => e.Id).ToHashSet();
         }
 
         var apps = await GetAllAppsAsync(ct);
@@ -639,7 +647,7 @@ public sealed partial class DataverseService : IDisposable
                 e.GetAttributeValue<string>("uniquename") ?? "",
                 e.GetAttributeValue<bool>("ismanaged"),
                 e.GetAttributeValue<OptionSetValue>("statecode")?.Value ?? 0)).ToList();
-        });
+        }, ct);
 
     public Task<List<FormInfo>> GetFormsAsync(CancellationToken ct = default) =>
         GetCachedAsync("forms", async () =>
@@ -667,7 +675,7 @@ public sealed partial class DataverseService : IDisposable
 
             return (await FetchAllAsync(fetch, ct)).Select(e =>
             {
-                var (roleIds, everyone) = ParseDisplayConditions(e.GetAttributeValue<string>("displayconditions"));
+                var readable = TryParseDisplayConditions(e.GetAttributeValue<string>("displayconditions"), out var parsed);
                 return new FormInfo(
                     e.Id,
                     e.GetAttributeValue<string>("name") ?? "",
@@ -675,10 +683,11 @@ public sealed partial class DataverseService : IDisposable
                     e.GetAttributeValue<OptionSetValue>("type")?.Value ?? -1,
                     e.GetAttributeValue<bool>("ismanaged"),
                     e.GetAttributeValue<OptionSetValue>("formactivationstate")?.Value ?? 1,
-                    roleIds,
-                    everyone);
+                    parsed.RoleIds,
+                    parsed.Everyone,
+                    !readable);
             }).ToList();
-        });
+        }, ct);
 
     public Task<List<ViewInfo>> GetViewsAsync(CancellationToken ct = default) =>
         GetCachedAsync("views", async () =>
@@ -711,7 +720,7 @@ public sealed partial class DataverseService : IDisposable
                 e.GetAttributeValue<bool>("isdefault"),
                 e.GetAttributeValue<bool>("ismanaged"),
                 e.GetAttributeValue<OptionSetValue>("statecode")?.Value ?? 0)).ToList();
-        });
+        }, ct);
 
     public Task<List<ChartInfo>> GetChartsAsync(CancellationToken ct = default) =>
         GetCachedAsync("charts", async () =>
@@ -732,7 +741,7 @@ public sealed partial class DataverseService : IDisposable
                 e.GetAttributeValue<string>("name") ?? "",
                 e.GetAttributeValue<string>("primaryentitytypecode") ?? "",
                 e.GetAttributeValue<bool>("ismanaged"))).ToList();
-        });
+        }, ct);
 
     public Task<List<BpfInfo>> GetBusinessProcessFlowsAsync(CancellationToken ct = default) =>
         GetCachedAsync("bpf", async () =>
@@ -761,7 +770,7 @@ public sealed partial class DataverseService : IDisposable
                 e.GetAttributeValue<string>("primaryentity") ?? "",
                 e.GetAttributeValue<bool>("ismanaged"),
                 e.GetAttributeValue<OptionSetValue>("statecode")?.Value ?? 0)).ToList();
-        });
+        }, ct);
 
     public Task<List<CustomApiInfo>> GetCustomApisAsync(CancellationToken ct = default) =>
         GetCachedAsync("customapi", async () =>
@@ -789,17 +798,24 @@ public sealed partial class DataverseService : IDisposable
                 e.GetAttributeValue<string>("executeprivilegename") ?? "",
                 e.GetAttributeValue<string>("boundentitylogicalname") ?? "",
                 e.GetAttributeValue<bool>("ismanaged"))).ToList();
-        });
+        }, ct);
 
     /// <summary>
     /// displayconditions có dạng &lt;Roles&gt;&lt;Role Id="{guid}" /&gt;&lt;/Roles&gt; hoặc chứa &lt;Everyone /&gt;.
     /// Rỗng nghĩa là form hiển thị cho mọi role.
     /// </summary>
-    internal static (HashSet<Guid> RoleIds, bool Everyone) ParseDisplayConditions(string? xml)
+    /// <summary>
+    /// Trả về false khi displayconditions có nội dung nhưng không phân tích được. Khi đó
+    /// <b>không</b> được suy ra là "mọi role đều thấy" – component sẽ được đánh dấu là không xác định.
+    /// </summary>
+    internal static bool TryParseDisplayConditions(string? xml, out (HashSet<Guid> RoleIds, bool Everyone) result)
     {
         var ids = new HashSet<Guid>();
         if (string.IsNullOrWhiteSpace(xml))
-            return (ids, true);
+        {
+            result = (ids, true);
+            return true;
+        }
 
         try
         {
@@ -811,11 +827,13 @@ public sealed partial class DataverseService : IDisposable
                 if (idAttr != null && Guid.TryParse(idAttr.Value, out var id))
                     ids.Add(id);
             }
-            return (ids, everyone || ids.Count == 0);
+            result = (ids, everyone || ids.Count == 0);
+            return true;
         }
         catch
         {
-            return (ids, true);
+            result = (ids, false);
+            return false;
         }
     }
 
@@ -823,17 +841,32 @@ public sealed partial class DataverseService : IDisposable
 
     #region Helpers
 
-    private async Task<T> GetCachedAsync<T>(string key, Func<Task<T>> factory) where T : class
+    /// <summary>
+    /// Dữ liệu dùng chung, chỉ tải một lần. Nếu tác vụ tải đang dùng chung bị <b>người gọi khác</b> hủy,
+    /// người gọi hiện tại sẽ tự tải lại bằng token của mình thay vì nhận lỗi hủy oan.
+    /// </summary>
+    private async Task<T> GetCachedAsync<T>(string key, Func<Task<T>> factory, CancellationToken ct = default)
+        where T : class
     {
-        var lazy = _cache.GetOrAdd(key, _ => new Lazy<Task<object>>(async () => await factory()));
-        try
+        for (var attempt = 0; ; attempt++)
         {
-            return (T)await lazy.Value;
-        }
-        catch
-        {
-            _cache.TryRemove(key, out _);
-            throw;
+            var lazy = _cache.GetOrAdd(key, _ => new Lazy<Task<object>>(async () => await factory()));
+            try
+            {
+                // WaitAsync: ta ngừng chờ mà không kéo theo những người đang chờ cùng dữ liệu.
+                return (T)await lazy.Value.WaitAsync(ct);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested && attempt == 0)
+            {
+                // Tác vụ dùng chung bị hủy bởi người gọi khác – bỏ khỏi cache rồi tải lại.
+                _cache.TryRemove(key, out _);
+            }
+            catch
+            {
+                // Lần tải lỗi không được giữ lại trong cache, để lần sau còn thử lại được.
+                _cache.TryRemove(key, out _);
+                throw;
+            }
         }
     }
 
@@ -869,6 +902,26 @@ public sealed partial class DataverseService : IDisposable
     {
         var items = string.Concat(values.Distinct().Select(v => $"<value>{v}</value>"));
         return $"""<condition attribute="{attribute}" operator="in">{items}</condition>""";
+    }
+
+    /// <summary>Số Id tối đa trong một điều kiện <c>in</c>; Dataverse giới hạn độ dài FetchXML.</summary>
+    private const int InChunkSize = 200;
+
+    /// <summary>
+    /// Chạy một truy vấn có điều kiện <c>in</c> theo từng lô Id để FetchXML không vượt giới hạn độ dài.
+    /// <paramref name="build"/> nhận điều kiện đã dựng sẵn cho lô hiện tại.
+    /// </summary>
+    private async Task<List<Entity>> FetchChunkedAsync(
+        string attribute, IEnumerable<Guid> ids, Func<string, string> build, CancellationToken ct)
+    {
+        var distinct = ids.Distinct().ToList();
+        if (distinct.Count == 0)
+            return [];
+
+        var result = new List<Entity>();
+        foreach (var chunk in distinct.Chunk(InChunkSize))
+            result.AddRange(await FetchAllAsync(build(InCondition(attribute, chunk)), ct));
+        return result;
     }
 
     /// <summary>Cột ID trên bảng trung gian có thể là Guid hoặc EntityReference.</summary>

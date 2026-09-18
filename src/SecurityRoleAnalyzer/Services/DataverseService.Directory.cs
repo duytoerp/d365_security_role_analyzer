@@ -80,6 +80,7 @@ public sealed partial class DataverseService
                 <attribute name="businessunitid" />
                 <attribute name="parentrootroleid" />
                 <attribute name="ismanaged" />
+                <attribute name="roletemplateid" />
                 <order attribute="name" />
                 <link-entity name="systemuserroles" from="roleid" to="roleid" intersect="true">
                   <filter>
@@ -99,6 +100,7 @@ public sealed partial class DataverseService
                 BusinessUnitName = e.GetAttributeValue<EntityReference>("businessunitid")?.Name ?? "",
                 IsManaged = e.GetAttributeValue<bool>("ismanaged"),
                 IsDirect = true,
+                RoleTemplateId = IdOf(e, "roletemplateid") is var t && t != Guid.Empty ? t : null,
             })
             .DistinctBy(r => r.AssignedRoleId)
             .ToList();
@@ -160,6 +162,8 @@ public sealed partial class DataverseService
                     <attribute name="businessunitid" />
                     <attribute name="parentrootroleid" />
                     <attribute name="ismanaged" />
+                    <attribute name="isinherited" />
+                    <attribute name="roletemplateid" />
                     <order attribute="name" />
                     <link-entity name="teamroles" from="roleid" to="roleid" intersect="true" alias="tr">
                       <attribute name="teamid" />
@@ -184,6 +188,8 @@ public sealed partial class DataverseService
                     IsDirect = false,
                     TeamId = teamId,
                     TeamName = names.GetValueOrDefault(teamId, ""),
+                    IsInherited = (e.GetAttributeValue<OptionSetValue>("isinherited")?.Value ?? 1) != 0,
+                    RoleTemplateId = IdOf(e, "roletemplateid") is var t && t != Guid.Empty ? t : null,
                 });
             }
         }
@@ -440,7 +446,7 @@ public sealed partial class DataverseService
             {
                 return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             }
-        });
+        }, ct);
 
     #endregion
 
@@ -490,6 +496,8 @@ public sealed partial class DataverseService
                     <attribute name="parentroleid" />
                     <attribute name="ismanaged" />
                     <attribute name="modifiedon" />
+                    <attribute name="isinherited" />
+                    <attribute name="roletemplateid" />
                   </entity>
                 </fetch>
                 """;
@@ -512,6 +520,8 @@ public sealed partial class DataverseService
                         BusinessUnitName = bu?.Name ?? "",
                         IsManaged = e.GetAttributeValue<bool>("ismanaged"),
                         ModifiedOn = e.GetAttributeValue<DateTime?>("modifiedon")?.ToLocalTime(),
+                        IsInherited = (e.GetAttributeValue<OptionSetValue>("isinherited")?.Value ?? 1) != 0,
+                        RoleTemplateId = IdOf(e, "roletemplateid") is var tpl && tpl != Guid.Empty ? tpl : null,
                     });
                 }
                 copyToRoot[e.Id] = rootId;
@@ -609,7 +619,7 @@ public sealed partial class DataverseService
                 TeamRoles = teamRoles,
                 TeamMembers = members,
             };
-        });
+        }, ct);
 
     #endregion
 }

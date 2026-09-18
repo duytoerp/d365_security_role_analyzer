@@ -48,10 +48,16 @@ public sealed class TeamRoleAssignment
     public string Name { get; init; } = "";
     public string BusinessUnitName { get; init; } = "";
     public bool IsManaged { get; init; }
+    /// <summary>
+    /// false = "Team privileges only": quyền chỉ áp dụng trên record do team sở hữu,
+    /// thành viên không nhận quyền mức User cho record của chính mình.
+    /// </summary>
+    public bool IsInherited { get; init; } = true;
     public int GrantedEntityCount { get; set; }
     public int GrantedMiscCount { get; set; }
 
     public string ManagedText => IsManaged ? "Managed" : "Unmanaged";
+    public string InheritanceText => IsInherited ? "User + Team" : "Chỉ record của team";
 }
 
 public sealed class TeamMember

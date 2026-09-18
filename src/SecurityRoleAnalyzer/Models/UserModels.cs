@@ -50,8 +50,23 @@ public sealed class UserRoleAssignment
     public string TeamName { get; init; } = "";
     /// <summary>Role này cũng được nhận từ nguồn khác (trực tiếp và/hoặc team khác).</summary>
     public bool IsDuplicated { get; set; }
+    /// <summary>
+    /// Với role qua team: false = "Team privileges only", quyền chỉ dùng được trên record của team.
+    /// Role gán trực tiếp luôn là true.
+    /// </summary>
+    public bool IsInherited { get; init; } = true;
+    /// <summary>Id template của role hệ thống; dùng để nhận diện không phụ thuộc ngôn ngữ.</summary>
+    public Guid? RoleTemplateId { get; init; }
 
-    public string SourceText => IsDirect ? "Trực tiếp" : $"Qua team: {TeamName}";
+    /// <summary>Quyền qua team nhưng không áp dụng cho record của chính user.</summary>
+    public bool IsTeamScopedOnly => !IsDirect && !IsInherited;
+
+    public bool IsSystemAdministrator =>
+        RoleTemplateId == RoleTemplates.SystemAdministrator || RoleTemplates.IsAdminName(Name);
+
+    public string SourceText => IsDirect
+        ? "Trực tiếp"
+        : $"Qua team: {TeamName}" + (IsInherited ? "" : " (chỉ record của team)");
     public string ManagedText => IsManaged ? "Managed" : "Unmanaged";
 }
 

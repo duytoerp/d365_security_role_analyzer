@@ -51,6 +51,58 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _busyText = "";
     [ObservableProperty] private string _statusText = "Sẵn sàng";
 
+    /// <summary>Phần trăm hoàn thành (0–100); -1 khi không đo được, thanh tiến trình chạy vô hạn.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasProgressValue), nameof(ProgressText))]
+    private double _busyProgress = -1;
+
+    public bool HasProgressValue => BusyProgress >= 0;
+    public string ProgressText => BusyProgress >= 0 ? $"{BusyProgress:0}%" : "";
+
+    /// <summary>Có thể hủy tác vụ đang chạy hay không (tác vụ nào cũng đăng ký nguồn hủy của mình).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CancelBusyCommand))]
+    private bool _canCancelBusy;
+
+    private CancellationTokenSource? _busyCts;
+
+    [RelayCommand(CanExecute = nameof(CanCancelBusy))]
+    private void CancelBusy()
+    {
+        BusyText = "Đang hủy...";
+        CanCancelBusy = false;
+        _busyCts?.Cancel();
+    }
+
+    /// <summary>
+    /// Chạy một tác vụ dài có thể hủy: tác vụ nhận token và một <see cref="IProgress{T}"/> để báo phần trăm.
+    /// </summary>
+    internal async Task RunCancellableAsync(string text, Func<CancellationToken, IProgress<(string Text, double Percent)>, Task> action)
+    {
+        using var cts = new CancellationTokenSource();
+        _busyCts = cts;
+        CanCancelBusy = true;
+        BusyProgress = 0;
+
+        var progress = new Progress<(string Text, double Percent)>(update =>
+        {
+            if (!string.IsNullOrEmpty(update.Text))
+                BusyText = update.Text;
+            BusyProgress = update.Percent;
+        });
+
+        try
+        {
+            await RunBusyAsync(text, () => action(cts.Token, progress));
+        }
+        finally
+        {
+            _busyCts = null;
+            CanCancelBusy = false;
+            BusyProgress = -1;
+        }
+    }
+
     [RelayCommand]
     private async Task ConnectAsync()
     {
@@ -117,12 +169,13 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            // Bỏ qua khi người dùng chọn role khác.
+            // Người dùng bấm Hủy, hoặc đã chọn sang mục khác.
+            StatusText = "Đã hủy thao tác.";
         }
         catch (Exception ex)
         {
             StatusText = "Lỗi: " + ex.Message;
-            Dialogs.ShowError(ex);
+            Dialogs.ShowError(ex, text);
         }
         finally
         {
@@ -387,7 +440,7 @@ public sealed partial class MainViewModel : ObservableObject
         var picked = PrincipalPickerWindow.Show(
             App.Current.MainWindow,
             isTeam ? $"Thêm team vào role \"{analysis.Role.Name}\"" : $"Thêm user vào role \"{analysis.Role.Name}\"",
-            isTeam ? text => service.SearchTeamsAsync(text) : text => service.SearchUsersAsync(text));
+            isTeam ? (text, top) => service.SearchTeamsAsync(text, top) : (text, top) => service.SearchUsersAsync(text, top));
         if (picked is null || picked.Count == 0)
             return;
 

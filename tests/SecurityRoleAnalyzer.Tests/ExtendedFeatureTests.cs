@@ -251,7 +251,7 @@ public class XamlSmokeTests
         return dispatcher!;
     });
 
-    private static void EnsureApp()
+    internal static void EnsureApp()
     {
         if (Application.Current is not null)
             return;
@@ -259,7 +259,7 @@ public class XamlSmokeTests
         app.InitializeComponent();
     }
 
-    private static void RunSta(Action action)
+    internal static void RunSta(Action action)
     {
         Exception? error = null;
         UiDispatcher.Value.Invoke(() =>

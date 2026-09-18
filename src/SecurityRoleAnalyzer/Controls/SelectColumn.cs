@@ -50,10 +50,29 @@ public sealed class SelectColumn : DataGridTemplateColumn
         cell.AppendChild(check);
 
         CellTemplate = new DataTemplate { VisualTree = cell };
-        CellStyle = Application.Current?.TryFindResource("SelectCell") as Style;
+        CellStyle = BuildCellStyle();
     }
 
-    private static void OnCellMouseDown(object sender, MouseButtonEventArgs e)
+    /// <summary>
+    /// Ô nhận phím Space/Enter để chọn dòng, nên cột chọn dùng được bằng bàn phím chứ không chỉ bằng chuột.
+    /// </summary>
+    private static Style BuildCellStyle()
+    {
+        var baseStyle = Application.Current?.TryFindResource("SelectCell") as Style;
+        var style = new Style(typeof(DataGridCell), baseStyle);
+        style.Setters.Add(new EventSetter(UIElement.PreviewKeyDownEvent, new KeyEventHandler(OnCellKeyDown)));
+        return style;
+    }
+
+    private static void OnCellMouseDown(object sender, MouseButtonEventArgs e) => Toggle(sender, e);
+
+    private static void OnCellKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Space or Key.Enter)
+            Toggle(sender, e);
+    }
+
+    private static void Toggle(object sender, RoutedEventArgs e)
     {
         if (FindAncestor<DataGridRow>(sender as DependencyObject) is { } row)
         {

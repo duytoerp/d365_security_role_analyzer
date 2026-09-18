@@ -25,7 +25,7 @@
                         <DataTemplate DataType="{x:Type m:AppModuleInfo}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding ListCaption}" Foreground="{StaticResource MutedTextBrush}" FontSize="11.5" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding ListCaption}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11.5" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -39,7 +39,7 @@
             <Grid>
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                             Visibility="{Binding HasAnalysis, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
-                    <TextBlock Text="📱" FontSize="48" HorizontalAlignment="Center" Foreground="#9FB3C8" />
+                    <TextBlock Text="📱" FontSize="48" HorizontalAlignment="Center" Foreground="{DynamicResource HintBrush}" />
                     <TextBlock Text="Chọn một app để xem role được phép mở app và những user truy cập được" Style="{StaticResource EmptyHint}" Margin="0,8,0,0" />
                 </StackPanel>
 

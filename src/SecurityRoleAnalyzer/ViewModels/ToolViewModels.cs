@@ -22,6 +22,28 @@ public abstract partial class ToolViewModelBase(MainViewModel host) : Observable
     [ObservableProperty] private string _busyText = "";
     [ObservableProperty] private string _statusText = "";
 
+    /// <summary>Phần trăm hoàn thành (0–100); -1 khi không đo được.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasProgressValue), nameof(ProgressText))]
+    private double _busyProgress = -1;
+
+    public bool HasProgressValue => BusyProgress >= 0;
+    public string ProgressText => BusyProgress >= 0 ? $"{BusyProgress:0}%" : "";
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
+    private bool _canCancel;
+
+    private CancellationTokenSource? _cts;
+
+    [RelayCommand(CanExecute = nameof(CanCancel))]
+    private void Cancel()
+    {
+        BusyText = "Đang hủy...";
+        CanCancel = false;
+        _cts?.Cancel();
+    }
+
     protected async Task RunAsync(string text, Func<Task> action)
     {
         IsBusy = true;
@@ -30,14 +52,45 @@ public abstract partial class ToolViewModelBase(MainViewModel host) : Observable
         {
             await action();
         }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Đã hủy thao tác.";
+        }
         catch (Exception ex)
         {
             StatusText = "Lỗi: " + ex.Message;
-            Dialogs.ShowError(ex);
+            Dialogs.ShowError(ex, text);
         }
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    /// <summary>Chạy tác vụ dài có thể hủy, kèm báo phần trăm.</summary>
+    protected async Task RunCancellableAsync(string text, Func<CancellationToken, IProgress<(string Text, double Percent)>, Task> action)
+    {
+        using var cts = new CancellationTokenSource();
+        _cts = cts;
+        CanCancel = true;
+        BusyProgress = 0;
+
+        var progress = new Progress<(string Text, double Percent)>(update =>
+        {
+            if (!string.IsNullOrEmpty(update.Text))
+                BusyText = update.Text;
+            BusyProgress = update.Percent;
+        });
+
+        try
+        {
+            await RunAsync(text, () => action(cts.Token, progress));
+        }
+        finally
+        {
+            _cts = null;
+            CanCancel = false;
+            BusyProgress = -1;
         }
     }
 
@@ -69,14 +122,24 @@ public sealed partial class LookupViewModel(MainViewModel host) : ToolViewModelB
     [ObservableProperty] private PrivilegeDepth _minimumDepth = PrivilegeDepth.User;
     [ObservableProperty] private bool _hideDisabledUsers = true;
 
-    [ObservableProperty] private List<LookupRoleRow> _roles = [];
-    [ObservableProperty] private List<PrincipalAccessRow> _teams = [];
+    [ObservableProperty] private ICollectionView? _rolesView;
+    [ObservableProperty] private ICollectionView? _teamsView;
     [ObservableProperty] private ICollectionView? _usersView;
+    private List<LookupRoleRow> _roles = [];
+    private List<PrincipalAccessRow> _teams = [];
     private List<PrincipalAccessRow> _users = [];
+
+    [ObservableProperty] private string _roleFilterText = "";
+    [ObservableProperty] private string _teamFilterText = "";
+    [ObservableProperty] private string _userFilterText = "";
+
+    partial void OnRoleFilterTextChanged(string value) => RolesView?.Refresh();
+    partial void OnTeamFilterTextChanged(string value) => TeamsView?.Refresh();
+    partial void OnUserFilterTextChanged(string value) => UsersView?.Refresh();
 
     public string ResultTitle => SelectedPrivilege is null
         ? "Chọn một privilege ở danh sách bên trái"
-        : $"{SelectedPrivilege.Privilege.Name}  ·  mức tối thiểu {MinimumDepth.ToText()}: {Roles.Count} role · {Teams.Count} team · {_users.Count(u => !u.IsDisabled)} user";
+        : $"{SelectedPrivilege.Privilege.Name}  ·  mức tối thiểu {MinimumDepth.ToText()}: {_roles.Count} role · {_teams.Count} team · {_users.Count(u => !u.IsDisabled)} user";
 
     private ICollectionView CreatePrivilegesView()
     {
@@ -120,10 +183,24 @@ public sealed partial class LookupViewModel(MainViewModel host) : ToolViewModelB
         if (_index is null || SelectedPrivilege is null)
             return;
         var (roles, teams, users) = AccessLookup.Find(_index, SelectedPrivilege.Privilege, MinimumDepth);
-        Roles = roles;
-        Teams = teams;
+        _roles = roles;
+        _teams = teams;
         _users = users;
-        UsersView = new ListCollectionView(users) { Filter = o => o is PrincipalAccessRow u && (!HideDisabledUsers || !u.IsDisabled) };
+        RolesView = new ListCollectionView(roles)
+        {
+            Filter = o => o is LookupRoleRow r && MainViewModel.Contains(r.Name, RoleFilterText),
+        };
+        TeamsView = new ListCollectionView(teams)
+        {
+            Filter = o => o is PrincipalAccessRow t && (MainViewModel.Contains(t.Name, TeamFilterText)
+                || MainViewModel.Contains(t.Detail, TeamFilterText) || MainViewModel.Contains(t.Via, TeamFilterText)),
+        };
+        UsersView = new ListCollectionView(users)
+        {
+            Filter = o => o is PrincipalAccessRow u && (!HideDisabledUsers || !u.IsDisabled)
+                && (MainViewModel.Contains(u.Name, UserFilterText) || MainViewModel.Contains(u.Detail, UserFilterText)
+                    || MainViewModel.Contains(u.Via, UserFilterText)),
+        };
         OnPropertyChanged(nameof(ResultTitle));
         ExportCommand.NotifyCanExecuteChanged();
     }
@@ -155,13 +232,13 @@ public sealed partial class LookupViewModel(MainViewModel host) : ToolViewModelB
             return;
         Host.ExportWorkbook($"TraCuu_{SelectedPrivilege.Privilege.Name}", wb =>
         {
-            ExcelExporter.AddSheet(wb, "Roles", Roles,
+            ExcelExporter.AddSheet(wb, "Roles", _roles,
                 new ExportColumn<LookupRoleRow>("Role", r => r.Name),
                 new ExportColumn<LookupRoleRow>("Mức", r => r.DepthText),
                 new ExportColumn<LookupRoleRow>("User trực tiếp", r => r.DirectUserCount),
                 new ExportColumn<LookupRoleRow>("Team", r => r.TeamCount),
                 new ExportColumn<LookupRoleRow>("Managed", r => r.ManagedText));
-            ExcelExporter.AddPrincipalSheet(wb, "Teams", Teams);
+            ExcelExporter.AddPrincipalSheet(wb, "Teams", _teams);
             ExcelExporter.AddPrincipalSheet(wb, "Users", _users);
         });
     }
@@ -318,6 +395,18 @@ public sealed partial class BulkPrivilegeViewModel(MainViewModel host) : ToolVie
     [NotifyCanExecuteChangedFor(nameof(ApplyCommand))]
     private List<BulkChangeRow> _preview = [];
 
+    [ObservableProperty] private ICollectionView? _previewView;
+    [ObservableProperty] private string _previewFilterText = "";
+
+    partial void OnPreviewFilterTextChanged(string value) => PreviewView?.Refresh();
+
+    partial void OnPreviewChanged(List<BulkChangeRow> value) =>
+        PreviewView = new ListCollectionView(value)
+        {
+            Filter = o => o is BulkChangeRow r && (MainViewModel.Contains(r.RoleName, PreviewFilterText)
+                || MainViewModel.Contains(r.Entity, PreviewFilterText) || MainViewModel.Contains(r.PrivilegeName, PreviewFilterText)),
+        };
+
     partial void OnEntitySearchTextChanged(string value) => EntitiesView.Refresh();
     partial void OnRoleSearchTextChanged(string value) => RolesView.Refresh();
     partial void OnHideManagedRolesChanged(bool value) => RolesView.Refresh();
@@ -405,28 +494,31 @@ public sealed partial class BulkPrivilegeViewModel(MainViewModel host) : ToolVie
         if (!Dialogs.Confirm($"Áp dụng {Preview.Count} thay đổi cho {byRole.Count} role?\n\nMỗi role sẽ được sao lưu privilege trước khi sửa (có thể hoàn tác trong Lịch sử thao tác)."))
             return;
 
-        await RunAsync("Đang áp dụng...", async () =>
+        await RunCancellableAsync("Đang áp dụng...", async (ct, progress) =>
         {
             var service = RequireService();
             var definitions = _catalog.GroupBy(p => p.Id).ToDictionary(g => g.Key, g => g.First());
             var errors = new List<string>();
-            var index = 0;
+            var done = 0;
             foreach (var group in byRole)
             {
-                BusyText = $"Đang cập nhật role {++index}/{byRole.Count}: {group.Key.RoleName}";
+                // Hủy giữa chừng: các role đã xử lý vẫn giữ nguyên thay đổi, đều có bản sao lưu trong Lịch sử.
+                ct.ThrowIfCancellationRequested();
+                progress.Report(($"Đang cập nhật role {done + 1}/{byRole.Count}: {group.Key.RoleName}", done * 100.0 / byRole.Count));
                 try
                 {
                     await service.UpdateRolePrivilegesAsync(group.Key.RoleId, group.Key.RoleName,
-                        group.Select(r => (definitions[r.PrivilegeId], r.Target)).ToList(), "Áp quyền hàng loạt");
+                        group.Select(r => (definitions[r.PrivilegeId], r.Target)).ToList(), "Áp quyền hàng loạt", ct);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     errors.Add($"{group.Key.RoleName}: {ex.Message}");
                 }
+                done++;
             }
             if (errors.Count > 0)
                 Dialogs.ShowWarning("Một số role không cập nhật được:\n\n" + string.Join("\n", errors));
-            StatusText = $"Đã cập nhật {byRole.Count - errors.Count}/{byRole.Count} role.";
+            StatusText = $"Đã cập nhật {done - errors.Count}/{byRole.Count} role.";
             Preview = [];
         });
     }
@@ -649,28 +741,41 @@ public sealed partial class ImportViewModel(MainViewModel host) : ToolViewModelB
         if (!Dialogs.Confirm($"Thực hiện {valid.Count} thao tác trên môi trường \"{Host.Service?.EnvironmentKey}\"?"))
             return;
 
-        await RunAsync("Đang thực hiện...", async () =>
+        await RunCancellableAsync("Đang thực hiện...", async (ct, progress) =>
         {
             var service = RequireService();
+            var cancelled = false;
             for (var i = 0; i < valid.Count; i++)
             {
+                if (ct.IsCancellationRequested)
+                {
+                    cancelled = true;
+                    break;
+                }
+
                 var row = valid[i];
-                BusyText = $"Dòng {row.RowNumber} ({i + 1}/{valid.Count}): {row.Action} {row.Target} – {row.PrincipalDisplay}";
+                progress.Report(($"Dòng {row.RowNumber} ({i + 1}/{valid.Count}): {row.Action} {row.Target} – {row.PrincipalDisplay}",
+                    i * 100.0 / valid.Count));
                 try
                 {
-                    await ImportService.ExecuteAsync(row, service);
+                    await ImportService.ExecuteAsync(row, service, ct);
                     row.Status = ImportStatus.Done;
                     row.Message = "";
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     row.Status = ImportStatus.Failed;
                     row.Message = ex.Message;
                 }
             }
+
             RowsView?.Refresh();
             UpdateSummary();
-            StatusText = $"Hoàn tất: {valid.Count(r => r.Status == ImportStatus.Done)} thành công, {valid.Count(r => r.Status == ImportStatus.Failed)} thất bại.";
+            var done = valid.Count(r => r.Status == ImportStatus.Done);
+            var failed = valid.Count(r => r.Status == ImportStatus.Failed);
+            StatusText = cancelled
+                ? $"Đã hủy sau {done + failed}/{valid.Count} dòng: {done} thành công, {failed} thất bại. Các dòng còn lại giữ nguyên."
+                : $"Hoàn tất: {done} thành công, {failed} thất bại.";
             ExecuteCommand.NotifyCanExecuteChanged();
         });
     }

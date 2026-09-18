@@ -13,7 +13,15 @@ public sealed partial class DataverseService
     private const string UserEntity = "systemuser";
     private const string TeamEntity = "team";
 
-    private async Task LoggedAsync(string action, string target, string detail, UndoInfo? undo, Guid? undoOf, Func<Task> operation)
+    private Task LoggedAsync(string action, string target, string detail, UndoInfo? undo, Guid? undoOf, Func<Task> operation) =>
+        LoggedAsync(action, target, detail, undo, undoOf, _ => operation());
+
+    /// <summary>
+    /// Chạy một thao tác ghi và ghi lại vào lịch sử. Thao tác gọi <c>progress.MarkApplied()</c> ngay khi
+    /// đã thay đổi dữ liệu thật, để nếu lỗi giữa chừng thì mục lịch sử vẫn hoàn tác được.
+    /// </summary>
+    private async Task LoggedAsync(
+        string action, string target, string detail, UndoInfo? undo, Guid? undoOf, Func<ChangeProgress, Task> operation)
     {
         var entry = new ActionLogEntry
         {
@@ -26,14 +34,16 @@ public sealed partial class DataverseService
             UndoOf = undoOf,
         };
 
+        var progress = new ChangeProgress();
         try
         {
-            await operation();
+            await operation(progress);
             entry.Success = true;
         }
         catch (Exception ex)
         {
             entry.Error = ex.Message;
+            entry.PartiallyApplied = progress.Applied;
             throw;
         }
         finally
@@ -41,6 +51,14 @@ public sealed partial class DataverseService
             ActionLogStore.Append(entry);
             _cache.TryRemove(IndexCacheKey, out _);
         }
+    }
+
+    /// <summary>Đánh dấu thời điểm thao tác đã thực sự thay đổi dữ liệu trên Dataverse.</summary>
+    private sealed class ChangeProgress
+    {
+        public bool Applied { get; private set; }
+
+        public void MarkApplied() => Applied = true;
     }
 
     #region Security role assignment
@@ -181,7 +199,7 @@ public sealed partial class DataverseService
             $"{effective.Count} thay đổi – {detail}",
             new UndoInfo { Kind = UndoKind.RestorePrivilegeBackup, RecordId = roleId, BackupFile = backupFile },
             null,
-            async () =>
+            async progress =>
             {
                 var adds = effective.Where(c => c.Depth > PrivilegeDepth.None).ToList();
                 if (adds.Count > 0)
@@ -191,6 +209,7 @@ public sealed partial class DataverseService
                         RoleId = roleId,
                         Privileges = adds.Select(c => ToSdkPrivilege(c.Privilege.Id, c.Depth)).ToArray(),
                     }, ct);
+                    progress.MarkApplied();
                 }
 
                 foreach (var remove in effective.Where(c => c.Depth == PrivilegeDepth.None))
@@ -200,6 +219,7 @@ public sealed partial class DataverseService
                         RoleId = roleId,
                         PrivilegeId = remove.Privilege.Id,
                     }, ct);
+                    progress.MarkApplied();
                 }
             });
 

@@ -7,10 +7,16 @@ namespace SecurityRoleAnalyzer.Tests;
 
 public class DisplayConditionsTests
 {
+    private static (HashSet<Guid> RoleIds, bool Everyone) Parse(string? xml)
+    {
+        Assert.True(DataverseService.TryParseDisplayConditions(xml, out var result), "XML phải đọc được");
+        return result;
+    }
+
     [Fact]
     public void Empty_conditions_mean_everyone()
     {
-        var (ids, everyone) = DataverseService.ParseDisplayConditions(null);
+        var (ids, everyone) = Parse(null);
         Assert.Empty(ids);
         Assert.True(everyone);
     }
@@ -22,7 +28,7 @@ public class DisplayConditionsTests
         var id2 = Guid.NewGuid();
         var xml = $"<Roles><Role Id=\"{{{id1.ToString().ToUpperInvariant()}}}\" /><Role Id=\"{id2}\" /></Roles>";
 
-        var (ids, everyone) = DataverseService.ParseDisplayConditions(xml);
+        var (ids, everyone) = Parse(xml);
 
         Assert.False(everyone);
         Assert.Contains(id1, ids);
@@ -32,15 +38,16 @@ public class DisplayConditionsTests
     [Fact]
     public void Everyone_element_is_detected()
     {
-        var (_, everyone) = DataverseService.ParseDisplayConditions($"<Roles><Everyone /><Role Id=\"{Guid.NewGuid()}\" /></Roles>");
-        Assert.True(everyone);
+        Assert.True(Parse($"<Roles><Everyone /><Role Id=\"{Guid.NewGuid()}\" /></Roles>").Everyone);
     }
 
     [Fact]
-    public void Invalid_xml_falls_back_to_everyone()
+    public void Invalid_xml_is_reported_unreadable_instead_of_everyone()
     {
-        var (_, everyone) = DataverseService.ParseDisplayConditions("<Roles><Role");
-        Assert.True(everyone);
+        // Suy ra "mọi role đều thấy" từ XML hỏng là sai theo hướng nguy hiểm.
+        Assert.False(DataverseService.TryParseDisplayConditions("<Roles><Role", out var result));
+        Assert.False(result.Everyone);
+        Assert.Empty(result.RoleIds);
     }
 }
 
