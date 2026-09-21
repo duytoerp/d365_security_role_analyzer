@@ -72,6 +72,7 @@
                                     <MenuItem Header="🔎 Tra cứu ngược: ai có quyền X?" Command="{Binding OpenLookupCommand}" />
                                     <MenuItem Header="📋 Rà soát quyền toàn hệ thống (User × Role)" Command="{Binding OpenAccessReviewCommand}" />
                                     <MenuItem Header="⇄ So sánh 2 role" Command="{Binding CompareCommand}" />
+                                    <MenuItem Header="🧾 Form này đang mở cho role nào?" Command="{Binding OpenFormRolesCommand}" />
                                     <MenuItem Header="⧉ Tìm role trùng lặp (gộp / dọn bớt)" Command="{Binding OpenRoleOverlapCommand}" />
                                     <MenuItem Header="🔍 Audit log phân quyền (từ D365)" Command="{Binding OpenAuditCommand}" />
                                     <Separator />
@@ -457,8 +458,13 @@
                                             <CheckBox Content="Chỉ component gán trực tiếp cho role" IsChecked="{Binding OnlyDirectComponents}" />
                                         </WrapPanel>
                                         <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Muted}" Margin="0,8,0,0"
-                                                   Text="App, Form, Dashboard có thể gán trực tiếp cho role. View, Chart không phân quyền theo role nên được suy ra từ quyền Read entity. BPF được xác định qua privilege trên entity của BPF; Custom API qua Execute Privilege." />
-                                        <DataGrid ItemsSource="{Binding ComponentsView}">
+                                                   Text="App, Form, Dashboard có thể gán trực tiếp cho role. View, Chart không phân quyền theo role nên được suy ra từ quyền Read entity. BPF được xác định qua privilege trên entity của BPF; Custom API qua Execute Privilege. Double-click một dòng để xem chiều ngược: form đó đang mở cho những role nào." />
+                                        <DataGrid x:Name="ComponentsGrid" ItemsSource="{Binding ComponentsView}"
+                                                  ToolTip="Double-click để xem form/entity này đang mở cho những role nào">
+                                            <DataGrid.InputBindings>
+                                                <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenFormRolesCommand}"
+                                                              CommandParameter="{Binding CurrentItem, ElementName=ComponentsGrid}" />
+                                            </DataGrid.InputBindings>
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Loại" Binding="{Binding Category}" Width="130" />
                                                 <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Tên" Binding="{Binding Name}" Width="*" />

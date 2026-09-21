@@ -226,6 +226,27 @@ public sealed partial class MainViewModel
         ShowTool(new RecordAccessWindow { DataContext = vm }, vm.LoadContextAsync);
     }
 
+    /// <summary>
+    /// Chiều ngược của tab Components. Tham số tùy chọn: tên entity hoặc dòng component
+    /// để mở sẵn với bộ lọc tương ứng.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanUseTools))]
+    private void OpenFormRoles(object? parameter)
+    {
+        var vm = new FormRoleViewModel(this);
+
+        var entity = parameter switch
+        {
+            RoleComponent component => component.EntityLogicalName,
+            string text => text,
+            _ => "",
+        };
+        if (!string.IsNullOrWhiteSpace(entity))
+            vm.SearchText = entity;
+
+        ShowTool(new FormRoleWindow { DataContext = vm }, vm.LoadAsync);
+    }
+
     [RelayCommand(CanExecute = nameof(CanUseTools))]
     private void OpenRoleOverlap()
     {

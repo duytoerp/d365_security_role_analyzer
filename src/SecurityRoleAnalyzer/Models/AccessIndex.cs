@@ -1,6 +1,27 @@
 namespace SecurityRoleAnalyzer.Models;
 
 /// <summary>
+/// Danh bạ role: role gốc, bản sao theo Business Unit và ánh xạ bản sao → gốc.
+/// Nhẹ hơn <see cref="AccessIndex"/> nhiều vì không tải privilege, user hay team –
+/// dùng cho chức năng chỉ cần quy đổi Id role ra tên.
+/// </summary>
+public sealed class RoleDirectory
+{
+    public List<SecurityRoleInfo> Roots { get; init; } = [];
+    public Dictionary<Guid, List<RoleCopy>> Copies { get; init; } = [];
+    /// <summary>Id bất kỳ bản sao role → Id role gốc.</summary>
+    public Dictionary<Guid, Guid> CopyToRoot { get; init; } = [];
+
+    private Dictionary<Guid, SecurityRoleInfo>? _roleById;
+
+    public Dictionary<Guid, SecurityRoleInfo> RoleById =>
+        _roleById ??= Roots.GroupBy(r => r.Id).ToDictionary(g => g.Key, g => g.First());
+
+    /// <summary>Quy Id bản sao theo BU về Id role gốc (Id lạ được giữ nguyên).</summary>
+    public Guid Root(Guid roleId) => CopyToRoot.GetValueOrDefault(roleId, roleId);
+}
+
+/// <summary>
 /// Ảnh chụp toàn bộ phân quyền của môi trường: role, privilege của role, gán role cho user/team và thành viên team.
 /// Dùng cho tra cứu ngược, rà soát quyền, snapshot, import và chế độ Apps / Business Units.
 /// Mọi Id role ở đây là Id role gốc (đã quy đổi từ bản sao theo BU).

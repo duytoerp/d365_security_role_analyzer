@@ -85,3 +85,12 @@ public partial class RecordAccessWindow : Window
         WindowMemory.Attach(this);
     }
 }
+
+public partial class FormRoleWindow : Window
+{
+    public FormRoleWindow()
+    {
+        InitializeComponent();
+        WindowMemory.Attach(this);
+    }
+}

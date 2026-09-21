@@ -9,6 +9,7 @@ namespace SecurityRoleAnalyzer.Services;
 public sealed partial class DataverseService
 {
     private const string IndexCacheKey = "access-index";
+    private const string RoleDirectoryCacheKey = "role-directory";
 
     #region Users
 
@@ -482,8 +483,12 @@ public sealed partial class DataverseService
     /// <summary>
     /// Tải (hoặc lấy từ cache) toàn bộ phân quyền của môi trường. Cache bị xóa sau mỗi thao tác thay đổi hoặc khi "Làm mới".
     /// </summary>
-    public Task<AccessIndex> GetAccessIndexAsync(IProgress<string>? progress = null, CancellationToken ct = default) =>
-        GetCachedAsync(IndexCacheKey, async () =>
+    /// <summary>
+    /// Role gốc + bản sao theo Business Unit. Chỉ đọc bảng role nên nhanh hơn
+    /// <see cref="GetAccessIndexAsync"/> rất nhiều; dùng khi chỉ cần quy Id role ra tên.
+    /// </summary>
+    public Task<RoleDirectory> GetRoleDirectoryAsync(IProgress<string>? progress = null, CancellationToken ct = default) =>
+        GetCachedAsync(RoleDirectoryCacheKey, async () =>
         {
             progress?.Report("Đang tải danh sách role...");
             const string rolesFetch = """
@@ -529,7 +534,21 @@ public sealed partial class DataverseService
                     copies[rootId] = list = [];
                 list.Add(new RoleCopy(e.Id, bu?.Id ?? Guid.Empty, bu?.Name ?? ""));
             }
-            Guid Root(Guid roleId) => copyToRoot.GetValueOrDefault(roleId, roleId);
+
+            return new RoleDirectory
+            {
+                Roots = roots.OrderBy(r => r.Name).ToList(),
+                Copies = copies,
+                CopyToRoot = copyToRoot,
+            };
+        }, ct);
+
+    public Task<AccessIndex> GetAccessIndexAsync(IProgress<string>? progress = null, CancellationToken ct = default) =>
+        GetCachedAsync(IndexCacheKey, async () =>
+        {
+            var directory = await GetRoleDirectoryAsync(progress, ct);
+            var roots = directory.Roots;
+            Guid Root(Guid roleId) => directory.Root(roleId);
 
             progress?.Report($"Đang tải privilege của {roots.Count} role...");
             const string privilegesFetch = """
@@ -608,9 +627,9 @@ public sealed partial class DataverseService
 
             return new AccessIndex
             {
-                Roles = roots.OrderBy(r => r.Name).ToList(),
-                RoleCopies = copies,
-                CopyToRoot = copyToRoot,
+                Roles = roots,
+                RoleCopies = directory.Copies,
+                CopyToRoot = directory.CopyToRoot,
                 RolePrivileges = rolePrivileges,
                 Users = users,
                 Teams = teams,

@@ -50,6 +50,7 @@ public sealed partial class DataverseService
         {
             ActionLogStore.Append(entry);
             _cache.TryRemove(IndexCacheKey, out _);
+            _cache.TryRemove(RoleDirectoryCacheKey, out _);
         }
     }
 

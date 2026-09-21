@@ -162,7 +162,7 @@ public sealed class RoleAnalyzer(DataverseService service)
         {
             var isDashboard = form.Type is 0 or 10 or 103;
             var assigned = form.RoleIds.Overlaps(roleIds);
-            var roleAssignable = form.Type is 0 or 2 or 10 or 12 or 103;
+            var roleAssignable = FormRoleAnalyzer.IsRoleScoped(form.Type);
             var entityReadable = form.Entity == "none" || readDepth.ContainsKey(form.Entity);
 
             string reason;
@@ -189,7 +189,7 @@ public sealed class RoleAnalyzer(DataverseService service)
                 Name = form.Name,
                 EntityLogicalName = form.Entity == "none" ? "" : form.Entity,
                 EntityDisplayName = form.Entity == "none" ? "" : DisplayOf(form.Entity),
-                SubType = FormTypeText(form.Type),
+                SubType = FormRoleAnalyzer.TypeText(form.Type),
                 AccessReason = reason,
                 IsDirect = assigned,
                 IsManaged = form.IsManaged,
@@ -445,18 +445,6 @@ public sealed class RoleAnalyzer(DataverseService service)
             return fallback;
         }
     }
-
-    private static string FormTypeText(int type) => type switch
-    {
-        0 => "Dashboard",
-        2 => "Main",
-        6 => "Quick View",
-        7 => "Quick Create",
-        10 => "Interactive Dashboard",
-        12 => "Main - Interactive",
-        103 => "Power BI Dashboard",
-        _ => type.ToString(),
-    };
 
     private static string ViewTypeText(int type) => type switch
     {
