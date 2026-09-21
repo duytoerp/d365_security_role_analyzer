@@ -21,7 +21,7 @@ Double-click để điều hướng chéo: role ↔ team ↔ user ↔ app ↔ BU
 | Công cụ | Mô tả |
 | --- | --- |
 | ❓ **Vì sao user không thấy bản ghi này?** | Dán URL bản ghi + chọn user → quyền hiệu lực **hỏi trực tiếp Dataverse**, kèm lý do: chủ sở hữu, Business Unit, role nào cấp mức nào, **chia sẻ bản ghi**, **hierarchy security** |
-| 🧾 **Form này đang mở cho role nào?** | Chiều ngược của tab Components: mỗi form/dashboard kèm danh sách security role được gán (đọc `systemform.displayconditions`), lọc được theo role, theo entity, theo kiểu phân quyền; chỉ ra form đang để *Everyone* và form chưa chọn role nào |
+| 🧾 **Form này đang mở cho role nào?** | Chiều ngược của tab Components: mỗi form/dashboard kèm danh sách security role được gán (đọc node `DisplayConditions` trong `systemform.formxml`), lọc được theo role, theo entity, theo kiểu phân quyền; chỉ ra form đang để *Everyone* và form chưa chọn role nào |
 | 🔎 **Tra cứu ngược** | Chọn privilege + mức tối thiểu → role, team và toàn bộ user có quyền (kèm nguồn) |
 | 📋 **Rà soát quyền** | Toàn bộ user & role, cờ cảnh báo, role không dùng; xuất Excel kèm **ma trận User × Role** |
 | ⇄ **So sánh 2 role** | Khác biệt từng privilege |
@@ -104,7 +104,7 @@ Chạy tự động cần Application User (đăng nhập tương tác không d�
 | `settings.json` | Giao diện sáng/tối, kích thước cửa sổ |
 | `policy.json` | Bộ quy tắc rà soát tùy chỉnh (tùy chọn) |
 | `TokenCache\` | Token OAuth |
-| `Cache\<môi trường>\` | Metadata entity & privilege |
+| `Cache\<môi trường>\` | Metadata entity & privilege, role của từng form |
 | `Backups\<môi trường>\` | Sao lưu privilege trước mỗi lần sửa |
 | `Snapshots\` | Snapshot môi trường |
 | `history.jsonl` | Lịch sử thao tác |
@@ -143,7 +143,9 @@ tests/SecurityRoleAnalyzer.Tests   xUnit (logic + UI smoke test)
   vì những nguồn này gắn với từng bản ghi cụ thể.
 - Quick View và Quick Create **không gán được security role** – D365 cho vào theo quyền Read entity,
   nên công cụ *Form này đang mở cho role nào?* liệt kê chúng ở nhóm riêng thay vì bỏ qua.
-- Form có `displayconditions` hỏng XML được báo là **không đọc được**, không mặc định coi là *Everyone*.
+- Role gán cho form **không có bảng hay cột riêng** trong Dataverse – nó nằm trong node `DisplayConditions`
+  bên trong `systemform.formxml`. Cột này rất lớn nên lần đầu đọc sẽ lâu; kết quả được **cache ra ổ đĩa 24 giờ**.
+- Form có form XML hỏng được báo là **không đọc được**, không mặc định coi là *Everyone*.
 - Snapshot và import khớp role theo **tên**; hai môi trường khác ngôn ngữ hiển thị sẽ cho kết quả so sánh sai lệch.
 - Các chức năng cần chỉ mục toàn môi trường (tra cứu ngược, rà soát, snapshot, Apps, Business Units)
   phải tải toàn bộ phân quyền, nên lần đầu sẽ lâu với môi trường lớn.

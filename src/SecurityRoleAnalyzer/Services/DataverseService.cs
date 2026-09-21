@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.IO;
 using System.Security;
+using System.Xml;
 using System.Xml.Linq;
 using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
@@ -17,6 +19,9 @@ namespace SecurityRoleAnalyzer.Services;
 public sealed partial class DataverseService : IDisposable
 {
     private const int PageSize = 5000;
+
+    /// <summary>formxml rất lớn nên lấy từng lô nhỏ, tránh response khổng lồ và timeout.</summary>
+    private const int FormXmlPageSize = 50;
 
     /// <summary>Số kết quả tối đa cho hộp tìm user/team; hộp thoại có nút tải thêm để nâng giới hạn.</summary>
     public const int DefaultSearchTop = 100;
@@ -569,6 +574,9 @@ public sealed partial class DataverseService : IDisposable
 
     public sealed record AppInfo(Guid Id, Guid UniqueId, string Name, string UniqueName, bool IsManaged, int State);
 
+    /// <summary>Kết quả đọc node DisplayConditions của một form; được cache ra ổ đĩa.</summary>
+    public sealed record FormDisplayConditions(List<Guid> RoleIds, bool Everyone, bool Unreadable);
+
     public sealed record FormInfo(
         Guid Id, string Name, string Entity, int Type, bool IsManaged, int ActivationState,
         HashSet<Guid> RoleIds, bool VisibleToEveryone, bool DisplayConditionsUnreadable = false);
@@ -649,9 +657,12 @@ public sealed partial class DataverseService : IDisposable
                 e.GetAttributeValue<OptionSetValue>("statecode")?.Value ?? 0)).ToList();
         }, ct);
 
-    public Task<List<FormInfo>> GetFormsAsync(CancellationToken ct = default) =>
+    public Task<List<FormInfo>> GetFormsAsync(CancellationToken ct = default) => GetFormsAsync(null, ct);
+
+    public Task<List<FormInfo>> GetFormsAsync(IProgress<string>? progress, CancellationToken ct = default) =>
         GetCachedAsync("forms", async () =>
         {
+            // Danh sách form không lấy formxml – cột đó rất lớn nên đọc riêng ở bước sau.
             // 0 Dashboard, 2 Main, 6 Quick View, 7 Quick Create, 10 Interactive Dashboard, 12 Main Interactive, 103 Power BI Dashboard
             const string fetch = """
                 <fetch>
@@ -662,7 +673,6 @@ public sealed partial class DataverseService : IDisposable
                     <attribute name="type" />
                     <attribute name="ismanaged" />
                     <attribute name="formactivationstate" />
-                    <attribute name="displayconditions" />
                     <filter>
                       <condition attribute="type" operator="in">
                         <value>0</value><value>2</value><value>6</value><value>7</value>
@@ -673,21 +683,66 @@ public sealed partial class DataverseService : IDisposable
                 </fetch>
                 """;
 
-            return (await FetchAllAsync(fetch, ct)).Select(e =>
+            var forms = await FetchAllAsync(fetch, ct);
+            var conditions = await GetFormDisplayConditionsAsync(progress, ct);
+
+            return forms.Select(e =>
             {
-                var readable = TryParseDisplayConditions(e.GetAttributeValue<string>("displayconditions"), out var parsed);
+                var type = e.GetAttributeValue<OptionSetValue>("type")?.Value ?? -1;
+                var parsed = conditions.GetValueOrDefault(e.Id);
                 return new FormInfo(
                     e.Id,
                     e.GetAttributeValue<string>("name") ?? "",
                     e.GetAttributeValue<string>("objecttypecode") ?? "none",
-                    e.GetAttributeValue<OptionSetValue>("type")?.Value ?? -1,
+                    type,
                     e.GetAttributeValue<bool>("ismanaged"),
                     e.GetAttributeValue<OptionSetValue>("formactivationstate")?.Value ?? 1,
-                    parsed.RoleIds,
-                    parsed.Everyone,
-                    !readable);
+                    [.. parsed?.RoleIds ?? []],
+                    parsed?.Everyone ?? true,
+                    parsed?.Unreadable ?? false);
             }).ToList();
         }, ct);
+
+    /// <summary>
+    /// Role được gán cho form <b>không có bảng hay cột riêng</b> – nó nằm trong node
+    /// <c>DisplayConditions</c> bên trong <c>systemform.formxml</c>. formxml có thể vài trăm KB
+    /// mỗi form nên đọc theo lô nhỏ, phân tích xong là bỏ, chỉ giữ lại Id role.
+    /// Kết quả được cache ra ổ đĩa vì rất tốn công tải lại.
+    /// </summary>
+    private async Task<Dictionary<Guid, FormDisplayConditions>> GetFormDisplayConditionsAsync(
+        IProgress<string>? progress, CancellationToken ct)
+    {
+        if (DiskCache.Load<Dictionary<Guid, FormDisplayConditions>>(
+                EnvironmentKey, "form-roles", DiskCache.DefaultMaxAge) is { Count: > 0 } cached)
+        {
+            return cached;
+        }
+
+        // Chỉ loại form gán được role mới cần đọc formxml.
+        const string fetch = """
+            <fetch>
+              <entity name="systemform">
+                <attribute name="formid" />
+                <attribute name="formxml" />
+                <filter>
+                  <condition attribute="type" operator="in">
+                    <value>0</value><value>2</value><value>10</value><value>12</value><value>103</value>
+                  </condition>
+                </filter>
+              </entity>
+            </fetch>
+            """;
+
+        var result = new Dictionary<Guid, FormDisplayConditions>();
+        await FetchPagedAsync(fetch, FormXmlPageSize, entity =>
+        {
+            var readable = TryParseFormXmlRoles(entity.GetAttributeValue<string>("formxml"), out var parsed);
+            result[entity.Id] = new FormDisplayConditions([.. parsed.RoleIds], parsed.Everyone, !readable);
+        }, progress, "Đang đọc cấu hình role của form:", ct);
+
+        DiskCache.Save(EnvironmentKey, "form-roles", result);
+        return result;
+    }
 
     public Task<List<ViewInfo>> GetViewsAsync(CancellationToken ct = default) =>
         GetCachedAsync("views", async () =>
@@ -808,10 +863,16 @@ public sealed partial class DataverseService : IDisposable
     /// Trả về false khi displayconditions có nội dung nhưng không phân tích được. Khi đó
     /// <b>không</b> được suy ra là "mọi role đều thấy" – component sẽ được đánh dấu là không xác định.
     /// </summary>
-    internal static bool TryParseDisplayConditions(string? xml, out (HashSet<Guid> RoleIds, bool Everyone) result)
+    /// <summary>
+    /// Đọc role được gán cho form từ <c>formxml</c>. Node cần tìm nằm trong form XML:
+    /// <code>&lt;DisplayConditions Order="0" FallbackForm="true"&gt;&lt;Role Id="{guid}" /&gt;&lt;/DisplayConditions&gt;</code>
+    /// Không có node, hoặc node không liệt kê role nào, nghĩa là "Everyone".
+    /// Trả về false khi XML hỏng – khi đó <b>không</b> được suy ra "Everyone" vì suy sai theo hướng nguy hiểm.
+    /// </summary>
+    internal static bool TryParseFormXmlRoles(string? formXml, out (HashSet<Guid> RoleIds, bool Everyone) result)
     {
         var ids = new HashSet<Guid>();
-        if (string.IsNullOrWhiteSpace(xml))
+        if (string.IsNullOrWhiteSpace(formXml))
         {
             result = (ids, true);
             return true;
@@ -819,22 +880,43 @@ public sealed partial class DataverseService : IDisposable
 
         try
         {
-            var root = XElement.Parse(xml);
-            var everyone = root.DescendantsAndSelf().Any(x => x.Name.LocalName.Equals("Everyone", StringComparison.OrdinalIgnoreCase));
-            foreach (var role in root.DescendantsAndSelf().Where(x => x.Name.LocalName.Equals("Role", StringComparison.OrdinalIgnoreCase)))
+            // Đọc theo luồng: formxml có thể vài trăm KB, không dựng cả cây XML trong bộ nhớ.
+            using var reader = XmlReader.Create(
+                new StringReader(formXml),
+                new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, IgnoreComments = true, IgnoreWhitespace = true });
+
+            var insideDisplayConditions = false;
+            while (reader.Read())
             {
-                var idAttr = role.Attributes().FirstOrDefault(a => a.Name.LocalName.Equals("Id", StringComparison.OrdinalIgnoreCase));
-                if (idAttr != null && Guid.TryParse(idAttr.Value, out var id))
-                    ids.Add(id);
+                if (reader.NodeType == XmlNodeType.Element)
+                {
+                    if (IsNamed(reader, "DisplayConditions"))
+                    {
+                        insideDisplayConditions = !reader.IsEmptyElement;
+                    }
+                    else if (insideDisplayConditions && IsNamed(reader, "Role")
+                             && Guid.TryParse(reader.GetAttribute("Id") ?? reader.GetAttribute("id"), out var id))
+                    {
+                        ids.Add(id);
+                    }
+                }
+                else if (reader.NodeType == XmlNodeType.EndElement && IsNamed(reader, "DisplayConditions"))
+                {
+                    insideDisplayConditions = false;
+                }
             }
-            result = (ids, everyone || ids.Count == 0);
+
+            result = (ids, ids.Count == 0);
             return true;
         }
-        catch
+        catch (XmlException)
         {
             result = (ids, false);
             return false;
         }
+
+        static bool IsNamed(XmlReader reader, string name) =>
+            reader.LocalName.Equals(name, StringComparison.OrdinalIgnoreCase);
     }
 
     #endregion
@@ -867,6 +949,44 @@ public sealed partial class DataverseService : IDisposable
                 _cache.TryRemove(key, out _);
                 throw;
             }
+        }
+    }
+
+    /// <summary>
+    /// Như <see cref="FetchAllAsync"/> nhưng xử lý xong từng trang là bỏ, không tích lũy kết quả.
+    /// Dùng cho cột rất lớn (formxml) để không giữ hàng trăm MB trong bộ nhớ.
+    /// </summary>
+    private async Task FetchPagedAsync(
+        string fetchXml, int pageSize, Action<Entity> handle,
+        IProgress<string>? progress, string progressLabel, CancellationToken ct)
+    {
+        var doc = XDocument.Parse(fetchXml);
+        var fetch = doc.Root!;
+        var page = 1;
+        string? cookie = null;
+        var total = 0;
+
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            fetch.SetAttributeValue("page", page);
+            fetch.SetAttributeValue("count", pageSize);
+            if (cookie != null)
+                fetch.SetAttributeValue("paging-cookie", cookie);
+
+            var response = await _client.RetrieveMultipleAsync(
+                new FetchExpression(doc.ToString(SaveOptions.DisableFormatting)), ct);
+
+            foreach (var entity in response.Entities)
+                handle(entity);
+
+            total += response.Entities.Count;
+            progress?.Report($"{progressLabel} {total}...");
+
+            if (!response.MoreRecords)
+                break;
+            page++;
+            cookie = response.PagingCookie;
         }
     }
 

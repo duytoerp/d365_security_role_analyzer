@@ -33,7 +33,7 @@ public sealed class RoleAnalyzer(DataverseService service)
         LinkUsersAndTeams(users, teams, teamUsers);
 
         progress?.Report("Đang phân tích component (App, Form, View...)...");
-        var components = await BuildComponentsAsync(roleIds, entityRows, catalog, rolePrivileges, metadata, warnings, ct);
+        var components = await BuildComponentsAsync(roleIds, entityRows, catalog, rolePrivileges, metadata, warnings, progress, ct);
 
         var analysis = new RoleAnalysis
         {
@@ -131,6 +131,7 @@ public sealed class RoleAnalyzer(DataverseService service)
         Dictionary<Guid, PrivilegeDepth> rolePrivileges,
         Dictionary<string, EntityInfo> metadata,
         List<string> warnings,
+        IProgress<string>? progress,
         CancellationToken ct)
     {
         var components = new List<RoleComponent>();
@@ -156,7 +157,7 @@ public sealed class RoleAnalyzer(DataverseService service)
         }));
 
         // Forms & dashboards: displayconditions.
-        var forms = await TryAsync(() => service.GetFormsAsync(ct), [], "Form/Dashboard", warnings);
+        var forms = await TryAsync(() => service.GetFormsAsync(progress, ct), [], "Form/Dashboard", warnings);
         var unreadableForms = 0;
         foreach (var form in forms)
         {

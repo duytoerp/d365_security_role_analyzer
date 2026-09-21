@@ -101,7 +101,7 @@ public sealed partial class FormRoleViewModel(MainViewModel host) : ToolViewMode
             var directory = await service.GetRoleDirectoryAsync(Progress);
 
             Progress.Report("Đang đọc form và dashboard...");
-            var forms = await service.GetFormsAsync();
+            var forms = await service.GetFormsAsync(Progress);
             var metadata = await service.GetEntityMetadataAsync();
 
             _rows = FormRoleAnalyzer.Build(forms, directory, metadata);

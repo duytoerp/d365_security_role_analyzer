@@ -5,16 +5,28 @@ using SecurityRoleAnalyzer.Services;
 
 namespace SecurityRoleAnalyzer.Tests;
 
-public class DisplayConditionsTests
+/// <summary>
+/// Role của form nằm trong node DisplayConditions bên trong formxml – Dataverse không có
+/// bảng hay cột riêng cho thông tin này.
+/// </summary>
+public class FormXmlRoleParsingTests
 {
     private static (HashSet<Guid> RoleIds, bool Everyone) Parse(string? xml)
     {
-        Assert.True(DataverseService.TryParseDisplayConditions(xml, out var result), "XML phải đọc được");
+        Assert.True(DataverseService.TryParseFormXmlRoles(xml, out var result), "XML phải đọc được");
         return result;
     }
 
+    /// <summary>formxml thật: DisplayConditions là con của form, nằm cạnh tabs.</summary>
+    private static string FormXml(string displayConditions) => $"""
+        <form>
+          <tabs><tab name="general"><labels><label description="General" languagecode="1033" /></labels></tab></tabs>
+          {displayConditions}
+        </form>
+        """;
+
     [Fact]
-    public void Empty_conditions_mean_everyone()
+    public void Empty_form_xml_means_everyone()
     {
         var (ids, everyone) = Parse(null);
         Assert.Empty(ids);
@@ -22,30 +34,63 @@ public class DisplayConditionsTests
     }
 
     [Fact]
-    public void Parses_role_ids_with_braces()
+    public void A_form_without_display_conditions_is_open_to_everyone()
+    {
+        var (ids, everyone) = Parse(FormXml(""));
+        Assert.Empty(ids);
+        Assert.True(everyone);
+    }
+
+    [Fact]
+    public void An_empty_display_conditions_node_is_open_to_everyone()
+    {
+        Assert.True(Parse(FormXml("<DisplayConditions Order=\"0\" FallbackForm=\"true\" />")).Everyone);
+        Assert.True(Parse(FormXml("<DisplayConditions Order=\"0\"></DisplayConditions>")).Everyone);
+    }
+
+    [Fact]
+    public void Parses_role_ids_with_braces_and_mixed_case()
     {
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
-        var xml = $"<Roles><Role Id=\"{{{id1.ToString().ToUpperInvariant()}}}\" /><Role Id=\"{id2}\" /></Roles>";
+        // Dataverse ghi Id dạng {GUID} viết hoa.
+        var braced = "{" + id1.ToString().ToUpperInvariant() + "}";
+        var xml = FormXml($"""
+            <DisplayConditions Order="0" FallbackForm="true">
+              <Role Id="{braced}" />
+              <Role Id="{id2}" />
+            </DisplayConditions>
+            """);
 
         var (ids, everyone) = Parse(xml);
 
         Assert.False(everyone);
+        Assert.Equal(2, ids.Count);
         Assert.Contains(id1, ids);
         Assert.Contains(id2, ids);
     }
 
     [Fact]
-    public void Everyone_element_is_detected()
+    public void Role_elements_outside_display_conditions_are_ignored()
     {
-        Assert.True(Parse($"<Roles><Everyone /><Role Id=\"{Guid.NewGuid()}\" /></Roles>").Everyone);
+        // formxml có nhiều node tên "role" cho mục đích khác – chỉ node trong DisplayConditions mới tính.
+        var assigned = Guid.NewGuid();
+        var xml = FormXml($"""
+            <Role Id="{Guid.NewGuid()}" />
+            <DisplayConditions Order="0"><Role Id="{assigned}" /></DisplayConditions>
+            <Role Id="{Guid.NewGuid()}" />
+            """);
+
+        var ids = Parse(xml).RoleIds;
+
+        Assert.Equal([assigned], ids);
     }
 
     [Fact]
     public void Invalid_xml_is_reported_unreadable_instead_of_everyone()
     {
         // Suy ra "mọi role đều thấy" từ XML hỏng là sai theo hướng nguy hiểm.
-        Assert.False(DataverseService.TryParseDisplayConditions("<Roles><Role", out var result));
+        Assert.False(DataverseService.TryParseFormXmlRoles("<form><DisplayConditions><Role", out var result));
         Assert.False(result.Everyone);
         Assert.Empty(result.RoleIds);
     }
