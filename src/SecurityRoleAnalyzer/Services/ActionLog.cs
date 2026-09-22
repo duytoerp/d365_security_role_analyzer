@@ -18,6 +18,7 @@ public enum UndoKind
     DisassociateAppRoles,
     AssociateFieldProfile,
     DisassociateFieldProfile,
+    SetFormRoles,
 }
 
 /// <summary>Dữ liệu cần để thực hiện thao tác ngược lại.</summary>
@@ -45,6 +46,13 @@ public sealed class ActionLogEntry
     public string Action { get; set; } = "";
     public string Target { get; set; } = "";
     public string Detail { get; set; } = "";
+    /// <summary>Id bản ghi bị thay đổi (form…) – để lọc lịch sử của riêng một đối tượng.</summary>
+    public Guid? RecordId { get; set; }
+    /// <summary>Trạng thái trước và sau thay đổi, dạng đọc được.</summary>
+    public string Before { get; set; } = "";
+    public string After { get; set; } = "";
+    /// <summary>File sao lưu dữ liệu gốc trước khi sửa (nếu có).</summary>
+    public string BackupFile { get; set; } = "";
     public bool Success { get; set; }
     public string Error { get; set; } = "";
     public UndoInfo? Undo { get; set; }
@@ -198,6 +206,29 @@ public static class DiskCache
         catch
         {
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Sửa một mục trong cache còn hạn mà không làm mới hạn của cả file – các mục khác
+    /// vẫn phải hết hạn đúng lúc để được tải lại từ Dataverse.
+    /// </summary>
+    public static void Update<T>(string environment, string name, Action<T> mutate) where T : class
+    {
+        try
+        {
+            var path = Path.Combine(Folder(environment), name + ".json");
+            if (Load<T>(environment, name, DefaultMaxAge) is not { } value)
+                return;
+
+            var lastWrite = File.GetLastWriteTime(path);
+            mutate(value);
+            File.WriteAllText(path, JsonSerializer.Serialize(value, Options));
+            File.SetLastWriteTime(path, lastWrite);
+        }
+        catch
+        {
+            // Cache là tùy chọn.
         }
     }
 

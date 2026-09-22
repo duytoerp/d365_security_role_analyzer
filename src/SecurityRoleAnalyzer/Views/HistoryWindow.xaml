@@ -30,6 +30,8 @@
                         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Thao tác" Binding="{Binding Action}" Width="190" />
                         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Đối tượng" Binding="{Binding Target}" Width="200" />
                         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Chi tiết" Binding="{Binding Detail}" Width="*" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Trước" Binding="{Binding Before}" Width="160" />
+                        <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Sau" Binding="{Binding After}" Width="160" />
                         <DataGridTextColumn Header="Kết quả" Binding="{Binding ResultText}" Width="170" />
                         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Lỗi" Binding="{Binding Error}" Width="160" />
                         <DataGridCheckBoxColumn Header="Hoàn tác được" Binding="{Binding CanUndo, Mode=OneWay}" Width="100" />

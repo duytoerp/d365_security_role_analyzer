@@ -1,4 +1,5 @@
-using Microsoft.Xrm.Sdk;
+﻿using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Query;
 using SecurityRoleAnalyzer.Models;
 using Crm = Microsoft.Crm.Sdk.Messages;
 
@@ -21,7 +22,8 @@ public sealed partial class DataverseService
     /// đã thay đổi dữ liệu thật, để nếu lỗi giữa chừng thì mục lịch sử vẫn hoàn tác được.
     /// </summary>
     private async Task LoggedAsync(
-        string action, string target, string detail, UndoInfo? undo, Guid? undoOf, Func<ChangeProgress, Task> operation)
+        string action, string target, string detail, UndoInfo? undo, Guid? undoOf, Func<ChangeProgress, Task> operation,
+        Action<ActionLogEntry>? describe = null)
     {
         var entry = new ActionLogEntry
         {
@@ -33,6 +35,7 @@ public sealed partial class DataverseService
             Undo = undoOf is null ? undo : null,
             UndoOf = undoOf,
         };
+        describe?.Invoke(entry);
 
         var progress = new ChangeProgress();
         try
@@ -455,6 +458,123 @@ public sealed partial class DataverseService
 
     #endregion
 
+    #region Form security roles
+
+    /// <summary>Thay đổi role của form: thêm/gỡ role gốc, hoặc mở cho mọi role (Everyone).</summary>
+    public sealed record FormRoleChange(IReadOnlyCollection<Guid> Add, IReadOnlyCollection<Guid> Remove, bool OpenToEveryone = false);
+
+    /// <summary>
+    /// Áp thay đổi lên cấu hình role <b>đang có trên Dataverse</b> (đọc lại formxml, không dùng cache 24 giờ)
+    /// để không ghi đè thay đổi người khác vừa làm trong Form settings. Trả về danh sách role sau khi ghi.
+    /// </summary>
+    public async Task<List<Guid>> ChangeFormRolesAsync(Guid formId, string formName, FormRoleChange change,
+        CancellationToken ct = default)
+    {
+        var directory = await GetRoleDirectoryAsync(null, ct);
+        var action = change.OpenToEveryone ? "Mở form cho mọi role"
+            : change.Remove.Count == 0 ? "Thêm role vào form"
+            : change.Add.Count == 0 ? "Gỡ role khỏi form"
+            : "Sửa role của form";
+
+        return await WriteFormRolesAsync(formId, formName, action, null, null, current =>
+        {
+            if (change.OpenToEveryone)
+                return [];
+
+            var remove = change.Remove.ToHashSet();
+            var kept = current.Where(id => !remove.Contains(id) && !remove.Contains(directory.Root(id))).ToList();
+            var keptRoots = kept.Select(directory.Root).ToHashSet();
+            kept.AddRange(change.Add.Where(id => !keptRoots.Contains(directory.Root(id))).Distinct());
+
+            // Danh sách rỗng được ghi thành Everyone – gỡ hết role sẽ mở form cho tất cả, ngược hẳn ý người dùng.
+            if (kept.Count == 0)
+                throw new InvalidOperationException(
+                    "Form phải còn ít nhất một role. Muốn mở form cho tất cả, dùng \"Mở cho mọi role\".");
+            return kept;
+        }, ct);
+    }
+
+    /// <summary>Đặt lại đúng danh sách role cũ của form (dùng khi hoàn tác).</summary>
+    public Task<List<Guid>> RestoreFormRolesAsync(Guid formId, string formName, IReadOnlyCollection<Guid> roleIds, string reason,
+        Guid? undoOf = null, CancellationToken ct = default) =>
+        WriteFormRolesAsync(formId, formName, "Khôi phục role của form", reason, undoOf, _ => [.. roleIds], ct);
+
+    /// <summary>
+    /// Đọc formxml mới nhất, sao lưu nguyên bản, ghi danh sách role mới rồi publish. Lịch sử ghi đủ:
+    /// entity, loại form, role thêm/gỡ thực tế, trạng thái trước/sau và đường dẫn file sao lưu.
+    /// </summary>
+    private async Task<List<Guid>> WriteFormRolesAsync(Guid formId, string formName, string action, string? reason, Guid? undoOf,
+        Func<List<Guid>, List<Guid>> compute, CancellationToken ct)
+    {
+        var form = await _client.RetrieveAsync("systemform", formId, new ColumnSet("formxml", "objecttypecode", "type"), ct);
+        var formXml = form.GetAttributeValue<string>("formxml");
+        if (string.IsNullOrWhiteSpace(formXml) || !TryParseFormXmlRoles(formXml, out var parsed))
+            throw new InvalidOperationException($"Không đọc được formxml của form \"{formName}\" – mở Form settings trong D365 để sửa.");
+
+        var before = parsed.RoleIds.ToList();
+        var after = compute(before);
+        if (after.ToHashSet().SetEquals(before))
+            return after;
+
+        var entity = form.GetAttributeValue<string>("objecttypecode") is { Length: > 0 } name && name != "none" ? name : null;
+        var type = form.GetAttributeValue<OptionSetValue>("type")?.Value ?? -1;
+        var isDashboard = type is 0 or 10 or 103;
+
+        var directory = await GetRoleDirectoryAsync(null, ct);
+        string RoleName(Guid id) =>
+            directory.RoleById.TryGetValue(directory.Root(id), out var role) ? role.Name : $"(role không còn tồn tại {id})";
+        string Describe(List<Guid> ids) =>
+            ids.Count == 0 ? "Everyone" : $"{ids.Count} role: " + string.Join(", ", ids.Select(RoleName).Order());
+
+        var beforeRoots = before.Select(directory.Root).ToHashSet();
+        var afterRoots = after.Select(directory.Root).ToHashSet();
+        var added = after.Where(id => !beforeRoots.Contains(directory.Root(id))).Select(RoleName).ToList();
+        var removed = before.Where(id => !afterRoots.Contains(directory.Root(id))).Select(RoleName).ToList();
+
+        var detail = new List<string> { $"{entity ?? "Dashboard"} · {FormRoleAnalyzer.TypeText(type)}" };
+        if (reason is not null)
+            detail.Add(reason);
+        if (added.Count > 0)
+            detail.Add("Thêm: " + string.Join(", ", added));
+        if (removed.Count > 0)
+            detail.Add("Gỡ: " + string.Join(", ", removed));
+        if (before.Count == 0 || after.Count == 0)
+            detail.Add($"{(before.Count == 0 ? "Everyone" : "Role cụ thể")} → {(after.Count == 0 ? "Everyone" : "Role cụ thể")}");
+
+        var backupFile = PrivilegeBackupStore.SaveFormXml(EnvironmentKey, formId, formName, formXml);
+
+        await LoggedAsync(
+            action,
+            $"Form: {formName}",
+            string.Join(" · ", detail),
+            new UndoInfo { Kind = UndoKind.SetFormRoles, RecordId = formId, Ids = before, BackupFile = backupFile },
+            undoOf,
+            async progress =>
+            {
+                await _client.UpdateAsync(new Entity("systemform", formId) { ["formxml"] = ReplaceFormXmlRoles(formXml, after) }, ct);
+                progress.MarkApplied();
+
+                // Chưa publish thì người dùng vẫn thấy cấu hình cũ.
+                var publish = (entity is null ? "" : $"<entities><entity>{entity}</entity></entities>")
+                              + (isDashboard ? $"<dashboards><dashboard>{formId:B}</dashboard></dashboards>" : "");
+                await _client.ExecuteAsync(new Crm.PublishXmlRequest { ParameterXml = $"<importexportxml>{publish}</importexportxml>" }, ct);
+            },
+            entry =>
+            {
+                entry.RecordId = formId;
+                entry.Before = Describe(before);
+                entry.After = Describe(after);
+                entry.BackupFile = backupFile;
+            });
+
+        _cache.TryRemove("forms", out _);
+        DiskCache.Update<Dictionary<Guid, FormDisplayConditions>>(EnvironmentKey, "form-roles",
+            cached => cached[formId] = new FormDisplayConditions(after, after.Count == 0, false));
+        return after;
+    }
+
+    #endregion
+
     #region Undo
 
     /// <summary>Thực hiện thao tác ngược của một mục lịch sử (chỉ trên môi trường đang kết nối).</summary>
@@ -500,6 +620,10 @@ public sealed partial class DataverseService
                 break;
             case UndoKind.AssociateFieldProfile:
                 await AssociateFieldProfileAsync(undo.RecordId, target, isTeam, undo.Ids.Select(id => (id, id.ToString())).ToList(), entry.Id, ct);
+                break;
+            case UndoKind.SetFormRoles:
+                await RestoreFormRolesAsync(undo.RecordId, target.Replace("Form: ", ""),
+                    undo.Ids, $"Hoàn tác \"{entry.Action}\" lúc {entry.Time:dd/MM/yyyy HH:mm:ss}", entry.Id, ct);
                 break;
             default:
                 throw new InvalidOperationException("Mục này không hỗ trợ hoàn tác.");

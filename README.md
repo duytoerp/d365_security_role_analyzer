@@ -21,7 +21,7 @@ Double-click để điều hướng chéo: role ↔ team ↔ user ↔ app ↔ BU
 | Công cụ | Mô tả |
 | --- | --- |
 | ❓ **Vì sao user không thấy bản ghi này?** | Dán URL bản ghi + chọn user → quyền hiệu lực **hỏi trực tiếp Dataverse**, kèm lý do: chủ sở hữu, Business Unit, role nào cấp mức nào, **chia sẻ bản ghi**, **hierarchy security** |
-| 🧾 **Form này đang mở cho role nào?** | Chiều ngược của tab Components: mỗi form/dashboard kèm danh sách security role được gán (đọc node `DisplayConditions` trong `systemform.formxml`), lọc được theo role, theo entity, theo kiểu phân quyền; chỉ ra form đang để *Everyone* và form chưa chọn role nào |
+| 🧾 **Form này đang mở cho role nào?** | Chiều ngược của tab Components: mỗi form/dashboard kèm danh sách security role được gán (đọc node `DisplayConditions` trong `systemform.formxml`), lọc được theo role, theo entity, theo kiểu phân quyền; chỉ ra form đang để *Everyone* và form chưa chọn role nào. **Thêm / gỡ role hoặc chuyển form sang Everyone** ngay trên panel bên phải – ghi `formxml` rồi publish, đọc lại cấu hình mới nhất trước khi ghi, sao lưu `formxml` gốc vào `Backups\<môi trường>\Forms\`, ghi lịch sử (role thêm/gỡ, trạng thái trước → sau, người thực hiện) và hiện **lịch sử thay đổi của riêng form đó** ngay trên panel; hoàn tác được |
 | 🔎 **Tra cứu ngược** | Chọn privilege + mức tối thiểu → role, team và toàn bộ user có quyền (kèm nguồn) |
 | 📋 **Rà soát quyền** | Toàn bộ user & role, cờ cảnh báo, role không dùng; xuất Excel kèm **ma trận User × Role** |
 | ⇄ **So sánh 2 role** | Khác biệt từng privilege |
@@ -48,7 +48,7 @@ Privilege của solution chưa cài trên môi trường đích sẽ bị bỏ q
 
 - Mọi thao tác ghi đều hỏi xác nhận và được ghi vào `%LOCALAPPDATA%\SecurityRoleAnalyzer\history.jsonl`.
 - Trước khi sửa privilege, privilege hiện tại được **sao lưu** vào `...\Backups\<môi trường>\`.
-- Hoàn tác được: gán/gỡ role, thêm/gỡ thành viên, sửa privilege, tạo role, role của app, field security profile.
+- Hoàn tác được: gán/gỡ role, thêm/gỡ thành viên, sửa privilege, tạo role, role của app, role của form, field security profile.
   Thao tác **lỗi giữa chừng** vẫn hoàn tác được (đánh dấu "Lỗi dở dang" trong lịch sử).
 - Gán role luôn dùng **bản sao role thuộc đúng Business Unit** của user/team (yêu cầu của Dataverse).
 - Lỗi được ghi kèm stack trace vào `errors.log`; hộp thoại lỗi có nút sao chép.

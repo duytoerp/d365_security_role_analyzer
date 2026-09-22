@@ -919,6 +919,33 @@ public sealed partial class DataverseService : IDisposable
             reader.LocalName.Equals(name, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Ghi lại danh sách role vào node <c>DisplayConditions</c> của formxml, giữ nguyên phần còn lại.
+    /// Danh sách rỗng nghĩa là "Everyone" (ghi node <c>&lt;Everyone /&gt;</c> như D365 vẫn làm).
+    /// Form chưa có node thì tạo mới với thuộc tính mặc định của D365.
+    /// </summary>
+    internal static string ReplaceFormXmlRoles(string formXml, IReadOnlyCollection<Guid> roleIds)
+    {
+        var doc = XDocument.Parse(formXml, LoadOptions.PreserveWhitespace);
+        var form = doc.Root ?? throw new InvalidOperationException("formxml không có node gốc.");
+
+        var conditions = form.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName.Equals("DisplayConditions", StringComparison.OrdinalIgnoreCase));
+        if (conditions is null)
+        {
+            conditions = new XElement("DisplayConditions", new XAttribute("Order", "0"), new XAttribute("FallbackForm", "true"));
+            form.AddFirst(conditions);
+        }
+
+        conditions.Nodes().Remove();
+        if (roleIds.Count == 0)
+            conditions.Add(new XElement("Everyone"));
+        else
+            conditions.Add(roleIds.Distinct().Select(id => new XElement("Role", new XAttribute("Id", id.ToString("B")))));
+
+        return doc.ToString(SaveOptions.DisableFormatting);
+    }
+
     #endregion
 
     #region Helpers

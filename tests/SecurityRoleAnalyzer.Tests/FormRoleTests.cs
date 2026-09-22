@@ -169,3 +169,55 @@ public class FormRoleAnalyzerTests
         Assert.Equal(["Beta", "Alpha", "Zebra"], names);
     }
 }
+
+/// <summary>Ghi role vào DisplayConditions phải đọc lại được đúng như trước và không đụng phần còn lại của form.</summary>
+public class FormXmlRoleWritingTests
+{
+    private static readonly Guid RoleA = new("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid RoleB = new("22222222-2222-2222-2222-222222222222");
+
+    private const string Tabs = """<tabs><tab name="general"><labels><label description="General" languagecode="1033" /></labels></tab></tabs>""";
+
+    private static (HashSet<Guid> RoleIds, bool Everyone) Parse(string xml)
+    {
+        Assert.True(DataverseService.TryParseFormXmlRoles(xml, out var result));
+        return result;
+    }
+
+    [Fact]
+    public void Replacing_roles_keeps_attributes_and_the_rest_of_the_form()
+    {
+        var xml = $"""<form>{Tabs}<DisplayConditions Order="3" FallbackForm="false"><Role Id="{RoleA:B}" /></DisplayConditions></form>""";
+
+        var written = DataverseService.ReplaceFormXmlRoles(xml, [RoleA, RoleB]);
+
+        Assert.Equal([RoleA, RoleB], Parse(written).RoleIds.OrderBy(id => id));
+        Assert.Contains("""Order="3" """.TrimEnd(), written);
+        Assert.Contains("""FallbackForm="false" """.TrimEnd(), written);
+        Assert.Contains(Tabs, written);
+    }
+
+    [Fact]
+    public void Empty_list_is_written_as_everyone()
+    {
+        var xml = $"""<form><DisplayConditions Order="0" FallbackForm="true"><Role Id="{RoleA:B}" /></DisplayConditions>{Tabs}</form>""";
+
+        var written = DataverseService.ReplaceFormXmlRoles(xml, []);
+
+        var (ids, everyone) = Parse(written);
+        Assert.Empty(ids);
+        Assert.True(everyone);
+        Assert.Contains("<Everyone />", written);
+    }
+
+    [Fact]
+    public void Form_without_display_conditions_gets_a_new_node()
+    {
+        var written = DataverseService.ReplaceFormXmlRoles($"<form>{Tabs}</form>", [RoleB]);
+
+        var (ids, everyone) = Parse(written);
+        Assert.Equal([RoleB], ids);
+        Assert.False(everyone);
+        Assert.Contains(Tabs, written);
+    }
+}

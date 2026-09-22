@@ -49,6 +49,19 @@ public static class PrivilegeBackupStore
         JsonSerializer.Deserialize<PrivilegeBackup>(File.ReadAllText(path), JsonDefaults.Options)
         ?? throw new InvalidDataException("File sao lưu không hợp lệ.");
 
+    /// <summary>
+    /// Lưu nguyên formxml trước khi sửa role của form, vào <c>Backups\&lt;môi trường&gt;\Forms\</c>.
+    /// Là bản gốc để đối chiếu hoặc dán lại bằng tay nếu cần – không chỉ dựa vào hoàn tác.
+    /// </summary>
+    public static string SaveFormXml(string environment, Guid formId, string formName, string formXml)
+    {
+        var folder = Path.Combine(Folder(environment), "Forms");
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, $"{Safe(formName)}_{formId:N}_{DateTime.Now:yyyyMMdd_HHmmss_fff}.xml");
+        File.WriteAllText(path, formXml);
+        return path;
+    }
+
     private static string Safe(string text) =>
         string.Concat(text.Select(c => Path.GetInvalidFileNameChars().Contains(c) || c == ' ' ? '_' : c));
 }

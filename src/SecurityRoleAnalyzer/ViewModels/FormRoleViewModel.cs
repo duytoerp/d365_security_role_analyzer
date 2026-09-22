@@ -1,10 +1,13 @@
+﻿using System.Collections;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Windows;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SecurityRoleAnalyzer.Models;
 using SecurityRoleAnalyzer.Services;
+using SecurityRoleAnalyzer.Views;
 
 namespace SecurityRoleAnalyzer.ViewModels;
 
@@ -31,6 +34,9 @@ public sealed partial class FormRoleViewModel(MainViewModel host) : ToolViewMode
     private const string OnlyNotScoped = "Chỉ form không phân quyền theo role";
 
     private List<FormRoleRow> _rows = [];
+    private RoleDirectory _directory = new();
+    private IReadOnlyDictionary<string, EntityInfo>? _metadata;
+    private List<ActionLogEntry> _history = [];
 
     [ObservableProperty] private ICollectionView? _rowsView;
     [ObservableProperty] private string _searchText = "";
@@ -40,12 +46,25 @@ public sealed partial class FormRoleViewModel(MainViewModel host) : ToolViewMode
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection), nameof(SelectedTitle), nameof(SelectedSubtitle),
-        nameof(SelectedHint), nameof(HintIsWarning), nameof(HintIsInfo))]
+        nameof(SelectedHint), nameof(HintIsWarning), nameof(HintIsInfo), nameof(CanEditRoles), nameof(EditHint))]
+    [NotifyCanExecuteChangedFor(nameof(AddRolesCommand), nameof(RemoveRolesCommand), nameof(OpenToEveryoneCommand))]
     private FormRoleRow? _selectedRow;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectedRolesText))]
+    [NotifyCanExecuteChangedFor(nameof(RemoveRolesCommand))]
+    private IList? _selectedRoleItems;
 
     public ObservableCollection<SummaryCard> SummaryCards { get; } = [];
     public ObservableCollection<RoleFilterOption> RoleOptions { get; } = [RoleFilterOption.All];
     public ObservableCollection<FormRoleAssignment> SelectedRoles { get; } = [];
+
+    /// <summary>Lịch sử thêm/gỡ role của form đang chọn, trên môi trường đang kết nối (mới nhất trước).</summary>
+    public ObservableCollection<ActionLogEntry> SelectedHistory { get; } = [];
+
+    public string HistoryTitle => SelectedHistory.Count == 0
+        ? "Lịch sử thay đổi (chưa có)"
+        : $"Lịch sử thay đổi ({SelectedHistory.Count})";
 
     public IReadOnlyList<string> VisibilityOptions { get; } =
         [AllVisibilities, OnlySpecific, OnlyEveryone, OnlyUnreadable, OnlyNotScoped];
@@ -80,6 +99,20 @@ public sealed partial class FormRoleViewModel(MainViewModel host) : ToolViewMode
 
     public bool HintIsInfo => HasSelection && !HintIsWarning;
 
+    /// <summary>Chỉ sửa được form gán được role và đọc được cấu hình hiện tại.</summary>
+    public bool CanEditRoles => SelectedRow is { Visibility: FormVisibility.SpecificRoles or FormVisibility.Everyone };
+
+    public string EditHint => SelectedRow switch
+    {
+        { Visibility: FormVisibility.NotRoleScoped } => "Loại form này không gán được role.",
+        { Visibility: FormVisibility.Unreadable } => "Không đọc được cấu hình – sửa trong Form settings của D365.",
+        _ => "",
+    };
+
+    private List<FormRoleAssignment> PickedRoles => SelectedRoleItems?.OfType<FormRoleAssignment>().ToList() ?? [];
+
+    public string SelectedRolesText => PickedRoles.Count == 0 ? "" : $"Đã chọn {PickedRoles.Count} role";
+
     partial void OnSearchTextChanged(string value) => RowsView?.Refresh();
     partial void OnVisibilityFilterChanged(string value) => RowsView?.Refresh();
     partial void OnOnlyActiveChanged(bool value) => RowsView?.Refresh();
@@ -90,6 +123,27 @@ public sealed partial class FormRoleViewModel(MainViewModel host) : ToolViewMode
         SelectedRoles.Clear();
         foreach (var assignment in value?.Roles ?? [])
             SelectedRoles.Add(assignment);
+        ShowHistory();
+    }
+
+    private void ReloadHistory()
+    {
+        var environment = Host.Service?.EnvironmentKey;
+        _history = ActionLogStore.Load()
+            .Where(e => e.RecordId is not null
+                        && string.Equals(e.Environment, environment, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private void ShowHistory()
+    {
+        SelectedHistory.Clear();
+        if (SelectedRow is { } row)
+        {
+            foreach (var entry in _history.Where(e => e.RecordId == row.FormId))
+                SelectedHistory.Add(entry);
+        }
+        OnPropertyChanged(nameof(HistoryTitle));
     }
 
     [RelayCommand]
@@ -104,7 +158,10 @@ public sealed partial class FormRoleViewModel(MainViewModel host) : ToolViewMode
             var forms = await service.GetFormsAsync(Progress);
             var metadata = await service.GetEntityMetadataAsync();
 
+            _directory = directory;
+            _metadata = metadata;
             _rows = FormRoleAnalyzer.Build(forms, directory, metadata);
+            ReloadHistory();
 
             RoleOptions.Clear();
             RoleOptions.Add(RoleFilterOption.All);
@@ -170,6 +227,103 @@ public sealed partial class FormRoleViewModel(MainViewModel host) : ToolViewMode
     {
         if (item is FormRoleAssignment { IsMissing: false } assignment)
             Host.OpenRole(assignment.RoleId);
+    }
+
+    private bool CanRemoveRoles => CanEditRoles && SelectedRow!.Visibility == FormVisibility.SpecificRoles && PickedRoles.Count > 0;
+
+    private bool CanOpenToEveryone => SelectedRow is { Visibility: FormVisibility.SpecificRoles };
+
+    [RelayCommand(CanExecute = nameof(CanEditRoles))]
+    private async Task AddRolesAsync()
+    {
+        if (SelectedRow is not { } row)
+            return;
+
+        var assigned = row.Roles.Select(r => r.RoleId).ToHashSet();
+        var available = _directory.Roots.Where(r => !assigned.Contains(r.Id)).ToList();
+        var picked = PrincipalPickerWindow.Show(ActiveWindow, $"Thêm role cho form \"{row.FormName}\"",
+            text => Task.FromResult(available.Where(r => MainViewModel.Contains(r.Name, text))
+                .Select(r => new PrincipalSearchResult { Id = r.Id, Name = r.Name, Detail = r.ManagedText, BusinessUnitName = r.BusinessUnitName })
+                .ToList()),
+            actionText: "Thêm vào form", hint: "User có role được chọn sẽ thấy form này.", searchOnOpen: true);
+        if (picked is null || picked.Count == 0)
+            return;
+
+        var names = string.Join("\n", picked.Select(p => "• " + p.Name));
+        var warning = row.IsOpenToEveryone
+            ? "\n\n⚠ Form đang mở cho mọi role (Everyone). Sau khi thêm, CHỈ các role này (và System Administrator) còn thấy form."
+            : "";
+        if (!Dialogs.Confirm($"Thêm {picked.Count} role cho form \"{row.FormName}\"?\n\n{names}{warning}{ManagedNote(row)}"))
+            return;
+
+        await SaveAsync(row, new DataverseService.FormRoleChange(picked.Select(p => p.Id).ToList(), []));
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRemoveRoles))]
+    private async Task RemoveRolesAsync()
+    {
+        if (SelectedRow is not { } row)
+            return;
+
+        var roles = PickedRoles;
+        if (roles.Count >= row.RoleCount)
+        {
+            Dialogs.ShowWarning("Form phải còn ít nhất một role.\n\nMuốn mở form cho tất cả, dùng \"Mở cho mọi role\".");
+            return;
+        }
+        if (!Dialogs.Confirm($"Gỡ {roles.Count} role khỏi form \"{row.FormName}\"?\n\n"
+                             + string.Join("\n", roles.Select(r => "• " + r.DisplayName)) + ManagedNote(row)))
+            return;
+
+        await SaveAsync(row, new DataverseService.FormRoleChange([], roles.Select(r => r.RoleId).ToList()));
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenToEveryone))]
+    private async Task OpenToEveryoneAsync()
+    {
+        if (SelectedRow is not { } row)
+            return;
+
+        if (!Dialogs.Confirm($"Mở form \"{row.FormName}\" cho MỌI role (Everyone)?\n\n"
+                             + $"Bỏ giới hạn {row.RoleCount} role hiện tại – mọi user đọc được entity đều thấy form này.{ManagedNote(row)}"))
+            return;
+
+        await SaveAsync(row, new DataverseService.FormRoleChange([], [], OpenToEveryone: true));
+    }
+
+    private static string ManagedNote(FormRoleRow row) => row.IsManaged
+        ? "\n\nForm thuộc managed solution – thay đổi nằm ở lớp unmanaged và có thể bị ghi đè khi cập nhật solution."
+        : "";
+
+    private static Window? ActiveWindow =>
+        Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive) ?? Application.Current?.MainWindow;
+
+    /// <summary>
+    /// Ghi lên Dataverse (kèm publish) rồi thay dòng trong bảng bằng cấu hình vừa ghi.
+    /// Lịch sử được tải lại cả khi lỗi – thao tác lỗi giữa chừng cũng phải hiện ra để còn hoàn tác.
+    /// </summary>
+    private async Task SaveAsync(FormRoleRow row, DataverseService.FormRoleChange change)
+    {
+        await RunAsync("Đang lưu và publish form...", async () =>
+        {
+            var roleIds = await RequireService().ChangeFormRolesAsync(row.FormId, row.FormName, change);
+
+            var info = new DataverseService.FormInfo(
+                row.FormId, row.FormName, row.EntityLogicalName is "" ? "none" : row.EntityLogicalName, row.FormType,
+                row.IsManaged, row.IsActive ? 1 : 0, [.. roleIds], roleIds.Count == 0);
+            var updated = FormRoleAnalyzer.Build([info], _directory, _metadata).Single();
+
+            var index = _rows.IndexOf(row);
+            if (index >= 0)
+                _rows[index] = updated;
+            RowsView?.Refresh();
+            SelectedRow = updated;
+            BuildSummary(_directory);
+            StatusText = $"Đã lưu và publish form \"{row.FormName}\" – {updated.VisibilityText}. Hoàn tác được trong Lịch sử thao tác.";
+        });
+
+        ReloadHistory();
+        ShowHistory();
     }
 
     private bool CanExport => _rows.Count > 0;
