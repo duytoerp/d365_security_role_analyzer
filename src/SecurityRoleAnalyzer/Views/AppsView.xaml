@@ -1,6 +1,7 @@
 <UserControl x:Class="SecurityRoleAnalyzer.Views.AppsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:s="clr-namespace:SecurityRoleAnalyzer.Services"
              xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
              xmlns:m="clr-namespace:SecurityRoleAnalyzer.Models"
              xmlns:c="clr-namespace:SecurityRoleAnalyzer.Controls"
@@ -69,7 +70,7 @@
                         <TabItem Header="{Binding RolesTabHeader}">
                             <DockPanel>
                                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{x:Static s:AppEdition.WriteVisibility}">
                                         <Button Content="＋ Thêm role vào app" Command="{Binding AddRolesCommand}" Style="{StaticResource PrimaryButton}" />
                                         <Button Content="Gỡ role đã chọn" Command="{Binding RemoveRolesCommand}" Style="{StaticResource DangerButton}" />
                                     </StackPanel>

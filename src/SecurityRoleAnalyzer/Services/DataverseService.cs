@@ -40,6 +40,7 @@ public sealed partial class DataverseService : IDisposable
 
     public static async Task<DataverseService> ConnectAsync(string connectionString, CancellationToken ct = default)
     {
+        ConnectionSecurity.EnsureHttps(connectionString);
         var client = await Task.Run(() => new ServiceClient(connectionString), ct);
         if (!client.IsReady)
         {

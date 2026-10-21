@@ -142,6 +142,57 @@ public sealed class LookupRoleRow
     public string ManagedText => IsManaged ? "Managed" : "Unmanaged";
 }
 
+/// <summary>Entity trong danh sách chọn của công cụ "Entity này có trong role nào?".</summary>
+public sealed class EntityRoleOption
+{
+    public string LogicalName { get; init; } = "";
+    public string DisplayName { get; init; } = "";
+    public bool IsCustom { get; init; }
+    /// <summary>Số role cấp ít nhất một quyền (mức khác None) trên entity.</summary>
+    public int RoleCount { get; init; }
+}
+
+/// <summary>Một role và mức 8 quyền chuẩn của role đó trên một entity.</summary>
+public sealed class EntityRoleRow
+{
+    public Guid RoleId { get; init; }
+    public string Name { get; init; } = "";
+    public string BusinessUnitName { get; init; } = "";
+    public bool IsManaged { get; init; }
+    public bool IsInherited { get; init; } = true;
+    public int DirectUserCount { get; init; }
+    public int TeamCount { get; init; }
+
+    public PrivilegeCell Create { get; init; } = PrivilegeCell.NotApplicable;
+    public PrivilegeCell Read { get; init; } = PrivilegeCell.NotApplicable;
+    public PrivilegeCell Write { get; init; } = PrivilegeCell.NotApplicable;
+    public PrivilegeCell Delete { get; init; } = PrivilegeCell.NotApplicable;
+    public PrivilegeCell Append { get; init; } = PrivilegeCell.NotApplicable;
+    public PrivilegeCell AppendTo { get; init; } = PrivilegeCell.NotApplicable;
+    public PrivilegeCell Assign { get; init; } = PrivilegeCell.NotApplicable;
+    public PrivilegeCell Share { get; init; } = PrivilegeCell.NotApplicable;
+
+    public IEnumerable<PrivilegeCell> Cells => [Create, Read, Write, Delete, Append, AppendTo, Assign, Share];
+
+    public PrivilegeCell Get(AccessRight right) => right switch
+    {
+        AccessRight.Create => Create,
+        AccessRight.Read => Read,
+        AccessRight.Write => Write,
+        AccessRight.Delete => Delete,
+        AccessRight.Append => Append,
+        AccessRight.AppendTo => AppendTo,
+        AccessRight.Assign => Assign,
+        AccessRight.Share => Share,
+        _ => PrivilegeCell.NotApplicable,
+    };
+
+    public int GrantedCount => Cells.Count(c => c.Depth > PrivilegeDepth.None);
+    public bool HasAnyPrivilege => GrantedCount > 0;
+    public string ManagedText => IsManaged ? "Managed" : "Unmanaged";
+    public string InheritanceText => IsInherited ? "User + Team" : "Chỉ quyền Team";
+}
+
 public sealed class ReviewUserRow
 {
     public required UserInfo User { get; init; }

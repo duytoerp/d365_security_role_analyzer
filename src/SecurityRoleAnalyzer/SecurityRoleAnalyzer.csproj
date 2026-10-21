@@ -7,9 +7,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <AssemblyTitle>D365 Security Role Analyzer</AssemblyTitle>
-    <Version>3.0.0</Version>
+    <Version>3.0.1</Version>
     <!-- Program.Main tự quyết định mở giao diện hay chạy chế độ dòng lệnh. -->
     <StartupObject>SecurityRoleAnalyzer.Program</StartupObject>
+  </PropertyGroup>
+
+  <!-- dotnet publish -p:Edition=Viewer: bản chỉ xem, khóa mọi thao tác ghi lên Dataverse (xem Services/AppEdition.cs). -->
+  <PropertyGroup Condition="'$(Edition)' == 'Viewer'">
+    <DefineConstants>$(DefineConstants);VIEWER</DefineConstants>
+    <AssemblyTitle>D365 Security Role Analyzer Viewer</AssemblyTitle>
+    <Product>D365 Security Role Analyzer Viewer</Product>
   </PropertyGroup>
 
   <ItemGroup>

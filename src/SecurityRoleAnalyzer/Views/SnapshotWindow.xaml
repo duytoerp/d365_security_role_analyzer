@@ -1,6 +1,7 @@
 <Window x:Class="SecurityRoleAnalyzer.Views.SnapshotWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:s="clr-namespace:SecurityRoleAnalyzer.Services"
         xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
         xmlns:c="clr-namespace:SecurityRoleAnalyzer.Controls"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -48,7 +49,7 @@
                     </Border>
                     <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="12,0,0,0">
                         <Button Content="⇄ So sánh" Command="{Binding CompareCommand}" Style="{StaticResource PrimaryButton}" MinWidth="150" Margin="0,0,0,6" />
-                        <Button Content="▶ Áp B lên môi trường này" Command="{Binding ApplyCommand}" MinWidth="150" Margin="0,0,0,6"
+                        <Button Content="▶ Áp B lên môi trường này" Command="{Binding ApplyCommand}" Visibility="{x:Static s:AppEdition.WriteVisibility}" MinWidth="150" Margin="0,0,0,6"
                                 ToolTip="Đưa privilege của role trên môi trường đang kết nối về đúng như bản B" />
                         <Button Content="⬇ Xuất Excel" Command="{Binding ExportCommand}" MinWidth="150" Margin="0" />
                     </StackPanel>

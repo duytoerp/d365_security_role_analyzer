@@ -25,6 +25,9 @@ public sealed partial class DataverseService
         string action, string target, string detail, UndoInfo? undo, Guid? undoOf, Func<ChangeProgress, Task> operation,
         Action<ActionLogEntry>? describe = null)
     {
+        // Mọi thao tác ghi đều đi qua đây, nên đây là chốt chặn cuối cùng của bản Viewer.
+        AppEdition.EnsureCanModify();
+
         var entry = new ActionLogEntry
         {
             Environment = EnvironmentKey,

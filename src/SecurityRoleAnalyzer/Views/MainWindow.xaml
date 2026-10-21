@@ -1,6 +1,7 @@
 <Window x:Class="SecurityRoleAnalyzer.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:s="clr-namespace:SecurityRoleAnalyzer.Services"
         xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
         xmlns:m="clr-namespace:SecurityRoleAnalyzer.Models"
         xmlns:c="clr-namespace:SecurityRoleAnalyzer.Controls"
@@ -70,15 +71,16 @@
                                 <ContextMenu>
                                     <MenuItem Header="❓ Vì sao user không thấy bản ghi này?" Command="{Binding OpenRecordAccessCommand}" />
                                     <MenuItem Header="🔎 Tra cứu ngược: ai có quyền X?" Command="{Binding OpenLookupCommand}" />
+                                    <MenuItem Header="🗂 Entity này có trong role nào?" Command="{Binding OpenEntityRolesCommand}" />
                                     <MenuItem Header="📋 Rà soát quyền toàn hệ thống (User × Role)" Command="{Binding OpenAccessReviewCommand}" />
                                     <MenuItem Header="⇄ So sánh 2 role" Command="{Binding CompareCommand}" />
                                     <MenuItem Header="🧾 Form này đang mở cho role nào?" Command="{Binding OpenFormRolesCommand}" />
                                     <MenuItem Header="⧉ Tìm role trùng lặp (gộp / dọn bớt)" Command="{Binding OpenRoleOverlapCommand}" />
                                     <MenuItem Header="🔍 Audit log phân quyền (từ D365)" Command="{Binding OpenAuditCommand}" />
-                                    <Separator />
-                                    <MenuItem Header="⚙ Áp quyền hàng loạt cho nhiều role" Command="{Binding OpenBulkPrivilegesCommand}" />
-                                    <MenuItem Header="♻ Khôi phục privilege từ bản sao lưu" Command="{Binding RestoreBackupCommand}" />
-                                    <MenuItem Header="📥 Import phân quyền từ Excel / CSV" Command="{Binding OpenImportCommand}" />
+                                    <Separator Visibility="{x:Static s:AppEdition.WriteVisibility}" />
+                                    <MenuItem Header="⚙ Áp quyền hàng loạt cho nhiều role" Command="{Binding OpenBulkPrivilegesCommand}" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
+                                    <MenuItem Header="♻ Khôi phục privilege từ bản sao lưu" Command="{Binding RestoreBackupCommand}" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
+                                    <MenuItem Header="📥 Import phân quyền từ Excel / CSV" Command="{Binding OpenImportCommand}" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
                                     <Separator />
                                     <MenuItem Header="📸 Snapshot &amp; so sánh môi trường" Command="{Binding OpenSnapshotCommand}" />
                                     <MenuItem Header="🕘 Lịch sử thao tác &amp; hoàn tác" Command="{Binding OpenHistoryCommand}" />
@@ -98,6 +100,7 @@
                                     </MenuItem>
                                     <MenuItem Header="🧾 Mở file log lỗi" Command="{Binding OpenErrorLogCommand}" />
                                     <MenuItem Header="⌨ Phím tắt" Command="{Binding ShowShortcutsCommand}" InputGestureText="F1" />
+                                    <MenuItem Header="{Binding UpdateMenuHeader}" Command="{Binding CheckUpdatesNowCommand}" />
                                 </ContextMenu>
                             </Button.ContextMenu>
                         </Button>
@@ -191,14 +194,14 @@
                                             ToolTip="Tạo, đổi tên, xóa, xuất/nhập định nghĩa role">
                                         <Button.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="＋ Tạo role mới (rỗng)" Command="{Binding NewRoleCommand}" />
-                                                <MenuItem Header="⧉ Sao chép role này" Command="{Binding CopyRoleCommand}" />
-                                                <MenuItem Header="✎ Đổi tên role" Command="{Binding RenameRoleCommand}" />
-                                                <Separator />
+                                                <MenuItem Header="＋ Tạo role mới (rỗng)" Command="{Binding NewRoleCommand}" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
+                                                <MenuItem Header="⧉ Sao chép role này" Command="{Binding CopyRoleCommand}" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
+                                                <MenuItem Header="✎ Đổi tên role" Command="{Binding RenameRoleCommand}" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
+                                                <Separator Visibility="{x:Static s:AppEdition.WriteVisibility}" />
                                                 <MenuItem Header="⬆ Xuất định nghĩa role ra file" Command="{Binding ExportRoleDefinitionCommand}" />
-                                                <MenuItem Header="⬇ Nhập định nghĩa role từ file" Command="{Binding ImportRoleDefinitionCommand}" />
-                                                <Separator />
-                                                <MenuItem Header="🗑 Xóa role" Command="{Binding DeleteRoleCommand}" />
+                                                <MenuItem Header="⬇ Nhập định nghĩa role từ file" Command="{Binding ImportRoleDefinitionCommand}" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
+                                                <Separator Visibility="{x:Static s:AppEdition.WriteVisibility}" />
+                                                <MenuItem Header="🗑 Xóa role" Command="{Binding DeleteRoleCommand}" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
                                             </ContextMenu>
                                         </Button.ContextMenu>
                                     </Button>
@@ -283,7 +286,7 @@
                                                      Text="{Binding EntitySearchText, UpdateSourceTrigger=PropertyChanged}" />
                                             <CheckBox Content="Chỉ entity có quyền" IsChecked="{Binding OnlyGrantedEntities}" />
                                             <CheckBox Content="Chỉ entity custom" IsChecked="{Binding OnlyCustomEntities}" />
-                                            <Button Content="{Binding EditButtonText}" Command="{Binding ToggleEditPrivilegesCommand}" Margin="16,0,0,0" />
+                                            <Button Content="{Binding EditButtonText}" Command="{Binding ToggleEditPrivilegesCommand}" Margin="16,0,0,0" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
                                         </WrapPanel>
                                         <Border DockPanel.Dock="Top" Style="{StaticResource WarningBanner}"
                                                 Visibility="{Binding IsEditingPrivileges, Converter={StaticResource BoolToVisibility}}">
@@ -305,7 +308,13 @@
                                                 <Run Text="     –" FontFamily="Segoe UI Symbol" FontSize="15" /> Không áp dụng   ·   Rê chuột lên ô để xem tên privilege
                                             </TextBlock>
                                         </Border>
-                                        <DataGrid ItemsSource="{Binding EntityRowsView}" FrozenColumnCount="2">
+                                        <DataGrid ItemsSource="{Binding EntityRowsView}" FrozenColumnCount="2" c:GridSelection.SelectRowOnRightClick="True">
+                                            <DataGrid.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="🗂 Entity này có trong role nào?" Command="{Binding OpenEntityRolesCommand}"
+                                                              CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                </ContextMenu>
+                                            </DataGrid.ContextMenu>
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Entity" Binding="{Binding DisplayName}" Width="220" />
                                                 <DataGridTextColumn Header="Logical Name" Binding="{Binding LogicalName}" Width="200" />
@@ -330,7 +339,7 @@
                                             <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Tìm privilege..." Width="300"
                                                      Text="{Binding MiscSearchText, UpdateSourceTrigger=PropertyChanged}" />
                                             <CheckBox Content="Chỉ privilege được cấp" IsChecked="{Binding OnlyGrantedMisc}" />
-                                            <Button Content="{Binding EditButtonText}" Command="{Binding ToggleEditPrivilegesCommand}" Margin="16,0,0,0" />
+                                            <Button Content="{Binding EditButtonText}" Command="{Binding ToggleEditPrivilegesCommand}" Margin="16,0,0,0" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
                                         </WrapPanel>
                                         <Border DockPanel.Dock="Top" Style="{StaticResource WarningBanner}"
                                                 Visibility="{Binding IsEditingPrivileges, Converter={StaticResource BoolToVisibility}}">
@@ -358,7 +367,7 @@
                                 <TabItem Header="{Binding UsersTabHeader}">
                                     <DockPanel>
                                         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{x:Static s:AppEdition.WriteVisibility}">
                                                 <Button Content="＋ Thêm user" Command="{Binding AddUserCommand}" Style="{StaticResource PrimaryButton}" />
                                                 <Button Content="Gỡ user đã chọn" Command="{Binding RemoveUsersCommand}" Style="{StaticResource DangerButton}" />
                                             </StackPanel>
@@ -392,7 +401,7 @@
                                 <TabItem Header="{Binding TeamsTabHeader}">
                                     <DockPanel>
                                         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{x:Static s:AppEdition.WriteVisibility}">
                                                 <Button Content="＋ Thêm team" Command="{Binding AddTeamCommand}" Style="{StaticResource PrimaryButton}" />
                                                 <Button Content="Gỡ team đã chọn" Command="{Binding RemoveTeamsCommand}" Style="{StaticResource DangerButton}" />
                                             </StackPanel>

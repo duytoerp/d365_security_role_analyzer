@@ -1,0 +1,106 @@
+<Window x:Class="SecurityRoleAnalyzer.Views.EntityRoleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
+        xmlns:m="clr-namespace:SecurityRoleAnalyzer.Models"
+        xmlns:c="clr-namespace:SecurityRoleAnalyzer.Controls"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:EntityRoleViewModel}"
+        Title="Entity này có trong role nào?" Width="1500" Height="820" WindowStartupLocation="CenterOwner"
+        FontFamily="Segoe UI" FontSize="13" Background="{DynamicResource AppBackgroundBrush}">
+    <Grid>
+        <DockPanel Margin="12">
+            <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="4,8,0,0" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="340" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource Card}">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="1. Chọn entity" Style="{StaticResource SectionTitle}" />
+                        <TextBox DockPanel.Dock="Top" Style="{StaticResource SearchBox}" Tag="🔍 Tên hiển thị hoặc logical name (vd: account)..."
+                                 Text="{Binding EntitySearchText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                        <CheckBox DockPanel.Dock="Top" Content="Ẩn entity chưa có role nào cấp quyền" IsChecked="{Binding HideEntitiesWithoutRoles}" Margin="0,0,0,8" />
+                        <DataGrid ItemsSource="{Binding EntitiesView}" SelectedItem="{Binding SelectedEntity}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Entity" Binding="{Binding DisplayName}" Width="*" />
+                                <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Logical Name" Binding="{Binding LogicalName}" Width="120" />
+                                <DataGridTextColumn Header="Số role" Binding="{Binding RoleCount}" Width="65" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource Card}">
+                    <DockPanel>
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="⟳ Tải lại chỉ mục" Command="{Binding LoadCommand}" />
+                                <Button Content="⬇ Xuất Excel" Command="{Binding ExportCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding ResultTitle}" Style="{StaticResource SectionTitle}" TextWrapping="Wrap" Margin="0" VerticalAlignment="Center" />
+                        </DockPanel>
+
+                        <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <TextBlock Text="Có quyền:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ComboBox ItemsSource="{Binding RightFilters}" SelectedItem="{Binding RightFilter}" DisplayMemberPath="Text" Width="160"
+                                      IsEnabled="{Binding ShowRolesWithoutAccess, Converter={StaticResource InverseBool}}" />
+                            <TextBlock Text="Mức tối thiểu:" VerticalAlignment="Center" Margin="16,0,8,0" />
+                            <ComboBox ItemsSource="{Binding Depths}" SelectedItem="{Binding MinimumDepth}" Width="140"
+                                      IsEnabled="{Binding ShowRolesWithoutAccess, Converter={StaticResource InverseBool}}" />
+                            <TextBox Style="{StaticResource SearchBox}" Tag="🔍 Lọc role..." Width="240" Margin="16,0,0,0"
+                                     Text="{Binding RoleFilterText, UpdateSourceTrigger=PropertyChanged}" />
+                            <CheckBox Content="Hiện cả role không có quyền" IsChecked="{Binding ShowRolesWithoutAccess}" Margin="16,0,0,0" VerticalAlignment="Center" />
+                            <CheckBox Content="Ẩn role managed" IsChecked="{Binding HideManagedRoles}" Margin="16,0,0,0" VerticalAlignment="Center" />
+                        </WrapPanel>
+
+                        <Border DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                            <TextBlock Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap">
+                                <Run Text="○" FontFamily="Segoe UI Symbol" Foreground="{Binding Source={x:Static m:PrivilegeDepth.None}, Converter={StaticResource DepthBrush}, Mode=OneWay}" FontSize="15" /> None
+                                <Run Text="     ◔" FontFamily="Segoe UI Symbol" Foreground="{Binding Source={x:Static m:PrivilegeDepth.User}, Converter={StaticResource DepthBrush}, Mode=OneWay}" FontSize="15" /> User
+                                <Run Text="     ◑" FontFamily="Segoe UI Symbol" Foreground="{Binding Source={x:Static m:PrivilegeDepth.BusinessUnit}, Converter={StaticResource DepthBrush}, Mode=OneWay}" FontSize="15" /> Business Unit
+                                <Run Text="     ◕" FontFamily="Segoe UI Symbol" Foreground="{Binding Source={x:Static m:PrivilegeDepth.ParentChild}, Converter={StaticResource DepthBrush}, Mode=OneWay}" FontSize="15" /> Parent: Child BU
+                                <Run Text="     ●" FontFamily="Segoe UI Symbol" Foreground="{Binding Source={x:Static m:PrivilegeDepth.Organization}, Converter={StaticResource DepthBrush}, Mode=OneWay}" FontSize="15" /> Organization
+                                <Run Text="     –" FontFamily="Segoe UI Symbol" FontSize="15" /> Không áp dụng   ·   Rê chuột lên ô để xem tên privilege   ·   Double-click để mở role
+                            </TextBlock>
+                        </Border>
+
+                        <DataGrid x:Name="RolesGrid" ItemsSource="{Binding RolesView}" FrozenColumnCount="1" ToolTip="Double-click để mở role">
+                            <DataGrid.InputBindings>
+                                <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenRoleCommand}" CommandParameter="{Binding CurrentItem, ElementName=RolesGrid}" />
+                            </DataGrid.InputBindings>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Role" Binding="{Binding Name}" Width="*" MinWidth="200" />
+                                <c:DepthColumn Header="Create" CellPath="Create" />
+                                <c:DepthColumn Header="Read" CellPath="Read" />
+                                <c:DepthColumn Header="Write" CellPath="Write" />
+                                <c:DepthColumn Header="Delete" CellPath="Delete" />
+                                <c:DepthColumn Header="Append" CellPath="Append" />
+                                <c:DepthColumn Header="Append To" CellPath="AppendTo" Width="88" />
+                                <c:DepthColumn Header="Assign" CellPath="Assign" />
+                                <c:DepthColumn Header="Share" CellPath="Share" />
+                                <DataGridTextColumn Header="Phạm vi" Binding="{Binding InheritanceText}" Width="105" />
+                                <DataGridTextColumn Header="User" Binding="{Binding DirectUserCount}" Width="55" />
+                                <DataGridTextColumn Header="Team" Binding="{Binding TeamCount}" Width="62" />
+                                <DataGridTextColumn Header="Managed" Binding="{Binding ManagedText}" Width="108" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </DockPanel>
+
+        <Grid Background="{DynamicResource OverlayBrush}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+            <Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,20" MinWidth="360">
+                <StackPanel>
+                    <TextBlock Text="{Binding BusyText}" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,14,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

@@ -246,6 +246,164 @@ public sealed partial class LookupViewModel(MainViewModel host) : ToolViewModelB
 
 #endregion
 
+#region Entity → roles
+
+public sealed record RightFilterOption(AccessRight Right, string Text)
+{
+    public override string ToString() => Text;
+}
+
+/// <summary>Chọn một entity → mọi role đang có quyền trên entity đó, kèm mức Create…Share của từng role.</summary>
+public sealed partial class EntityRoleViewModel(MainViewModel host) : ToolViewModelBase(host)
+{
+    private AccessIndex? _index;
+    private List<PrivilegeDefinition> _catalog = [];
+    private List<EntityRoleRow> _rows = [];
+
+    /// <summary>Entity chọn sẵn sau khi tải (mở từ ma trận quyền của role).</summary>
+    public string InitialEntity { get; init; } = "";
+
+    public ObservableCollection<EntityRoleOption> Entities { get; } = [];
+    public ICollectionView EntitiesView => field ??= CreateEntitiesView();
+
+    private static readonly RightFilterOption AnyRight = new(AccessRight.None, "Bất kỳ quyền nào");
+
+    public IReadOnlyList<RightFilterOption> RightFilters { get; } =
+    [
+        AnyRight,
+        .. EntityPrivilegeRow.StandardRights.Select(r => new RightFilterOption(r, r == AccessRight.AppendTo ? "Append To" : r.ToString())),
+    ];
+
+    public IReadOnlyList<PrivilegeDepth> Depths { get; } = [PrivilegeDepth.User, PrivilegeDepth.BusinessUnit, PrivilegeDepth.ParentChild, PrivilegeDepth.Organization];
+
+    [ObservableProperty] private string _entitySearchText = "";
+    [ObservableProperty] private bool _hideEntitiesWithoutRoles;
+    [ObservableProperty] private EntityRoleOption? _selectedEntity;
+
+    [ObservableProperty] private RightFilterOption _rightFilter = AnyRight;
+    [ObservableProperty] private PrivilegeDepth _minimumDepth = PrivilegeDepth.User;
+    [ObservableProperty] private bool _showRolesWithoutAccess;
+    [ObservableProperty] private bool _hideManagedRoles;
+    [ObservableProperty] private string _roleFilterText = "";
+    [ObservableProperty] private ICollectionView? _rolesView;
+
+    partial void OnEntitySearchTextChanged(string value) => EntitiesView.Refresh();
+    partial void OnHideEntitiesWithoutRolesChanged(bool value) => EntitiesView.Refresh();
+    partial void OnSelectedEntityChanged(EntityRoleOption? value) => Search();
+    partial void OnRightFilterChanged(RightFilterOption value) => RefreshRoles();
+    partial void OnMinimumDepthChanged(PrivilegeDepth value) => RefreshRoles();
+    partial void OnShowRolesWithoutAccessChanged(bool value) => RefreshRoles();
+    partial void OnHideManagedRolesChanged(bool value) => RefreshRoles();
+    partial void OnRoleFilterTextChanged(string value) => RefreshRoles();
+
+    public string ResultTitle
+    {
+        get
+        {
+            if (SelectedEntity is not { } entity)
+                return "Chọn một entity ở danh sách bên trái";
+            var granted = _rows.Count(r => r.HasAnyPrivilege);
+            var shown = RolesView?.Cast<object>().Count() ?? 0;
+            return $"{entity.DisplayName} ({entity.LogicalName})  ·  {granted}/{_rows.Count} role có quyền  ·  đang hiện {shown}";
+        }
+    }
+
+    private ICollectionView CreateEntitiesView()
+    {
+        var view = CollectionViewSource.GetDefaultView(Entities);
+        view.Filter = o => o is EntityRoleOption e
+                           && (!HideEntitiesWithoutRoles || e.RoleCount > 0)
+                           && (MainViewModel.Contains(e.DisplayName, EntitySearchText) || MainViewModel.Contains(e.LogicalName, EntitySearchText));
+        return view;
+    }
+
+    [RelayCommand]
+    public async Task LoadAsync()
+    {
+        await RunAsync("Đang tải chỉ mục phân quyền...", async () =>
+        {
+            var service = RequireService();
+            _catalog = await service.GetPrivilegeCatalogAsync();
+            var metadata = await service.GetEntityMetadataAsync();
+            _index = await service.GetAccessIndexAsync(Progress);
+
+            var current = SelectedEntity?.LogicalName ?? InitialEntity;
+            Entities.Clear();
+            foreach (var option in EntityRoleLookup.BuildEntityOptions(_index, _catalog, metadata))
+                Entities.Add(option);
+
+            SelectedEntity = Entities.FirstOrDefault(e => string.Equals(e.LogicalName, current, StringComparison.OrdinalIgnoreCase));
+            Search();
+            StatusText = $"{Entities.Count} entity · chỉ mục: {_index.Roles.Count} role (tải lúc {_index.LoadedOn:HH:mm}). Double-click một role để mở.";
+        });
+    }
+
+    /// <summary>Nạp dữ liệu dựng sẵn thay vì tải từ Dataverse (render xem trước giao diện).</summary>
+    internal void LoadDemo(AccessIndex index, List<PrivilegeDefinition> catalog, IReadOnlyDictionary<string, EntityInfo> metadata, string entity)
+    {
+        _index = index;
+        _catalog = catalog;
+        Entities.Clear();
+        foreach (var option in EntityRoleLookup.BuildEntityOptions(index, catalog, metadata))
+            Entities.Add(option);
+        SelectedEntity = Entities.FirstOrDefault(e => string.Equals(e.LogicalName, entity, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void Search()
+    {
+        _rows = _index is not null && SelectedEntity is { } entity
+            ? EntityRoleLookup.Find(_index, _catalog, entity.LogicalName)
+            : [];
+        RolesView = new ListCollectionView(_rows) { Filter = FilterRole };
+        OnPropertyChanged(nameof(ResultTitle));
+        ExportCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool FilterRole(object o) =>
+        o is EntityRoleRow r
+        && (ShowRolesWithoutAccess || EntityRoleLookup.Matches(r, RightFilter.Right, MinimumDepth))
+        && (!HideManagedRoles || !r.IsManaged)
+        && MainViewModel.Contains(r.Name, RoleFilterText);
+
+    private void RefreshRoles()
+    {
+        RolesView?.Refresh();
+        OnPropertyChanged(nameof(ResultTitle));
+    }
+
+    [RelayCommand]
+    private void OpenRole(EntityRoleRow? row)
+    {
+        if (row is not null)
+            Host.OpenRole(row.RoleId);
+    }
+
+    private bool CanExport => SelectedEntity is not null;
+
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private void Export()
+    {
+        if (SelectedEntity is not { } entity || RolesView is null)
+            return;
+        var rows = RolesView.Cast<EntityRoleRow>().ToList();
+        Host.ExportWorkbook($"Entity_{entity.LogicalName}_Roles", wb =>
+        {
+            ExcelExporter.AddInfoSheet(wb, "Tong quan",
+            [
+                ("Entity", $"{entity.DisplayName} ({entity.LogicalName})"),
+                ("Thời điểm", DateTime.Now.ToString("dd/MM/yyyy HH:mm")),
+                ("Điều kiện lọc", ShowRolesWithoutAccess
+                    ? "Tất cả role"
+                    : $"{RightFilter.Text} – mức tối thiểu {MinimumDepth.ToText()}"),
+                ("Số role", rows.Count),
+            ], []);
+            ExcelExporter.AddEntityRoleSheet(wb, "Roles", rows);
+        });
+    }
+}
+
+#endregion
+
 #region Access review
 
 public sealed partial class AccessReviewViewModel(MainViewModel host) : ToolViewModelBase(host)

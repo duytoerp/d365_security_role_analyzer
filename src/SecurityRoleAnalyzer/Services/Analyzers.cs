@@ -523,3 +523,113 @@ public static class AccessLookup
         return (roles, teams, users);
     }
 }
+
+/// <summary>Chiều entity của tra cứu ngược: một entity đang có trong những role nào, với mức của từng quyền.</summary>
+public static class EntityRoleLookup
+{
+    /// <summary>Danh sách entity có privilege, kèm số role cấp ít nhất một quyền trên entity đó.</summary>
+    public static List<EntityRoleOption> BuildEntityOptions(
+        AccessIndex index, IReadOnlyCollection<PrivilegeDefinition> catalog, IReadOnlyDictionary<string, EntityInfo> metadata)
+    {
+        var entityOfPrivilege = catalog
+            .Where(p => p.EntityLogicalName is not null && EntityPrivilegeRow.StandardRights.Contains(p.AccessRight))
+            .GroupBy(p => p.Id)
+            .ToDictionary(g => g.Key, g => g.First().EntityLogicalName!);
+
+        var roleCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var role in index.Roles)
+        {
+            if (!index.RolePrivileges.TryGetValue(role.Id, out var privileges))
+                continue;
+            var entities = privileges
+                .Where(p => p.Value > PrivilegeDepth.None)
+                .Select(p => entityOfPrivilege.GetValueOrDefault(p.Key))
+                .OfType<string>()
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            foreach (var entity in entities)
+                roleCount[entity] = roleCount.GetValueOrDefault(entity) + 1;
+        }
+
+        return entityOfPrivilege.Values
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(e =>
+            {
+                var info = metadata.GetValueOrDefault(e);
+                return new EntityRoleOption
+                {
+                    LogicalName = e,
+                    DisplayName = info?.DisplayName is { } name && !string.IsNullOrWhiteSpace(name) ? name : e,
+                    IsCustom = info?.IsCustom ?? false,
+                    RoleCount = roleCount.GetValueOrDefault(e),
+                };
+            })
+            .OrderBy(e => e.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Mọi role kèm mức 8 quyền chuẩn trên entity (kể cả role không có quyền nào – giao diện tự lọc).
+    /// Entity có nhiều privilege cùng access right thì lấy mức cao nhất, giống ma trận quyền của role.
+    /// </summary>
+    public static List<EntityRoleRow> Find(AccessIndex index, IEnumerable<PrivilegeDefinition> catalog, string entityLogicalName)
+    {
+        var privileges = catalog
+            .Where(p => string.Equals(p.EntityLogicalName, entityLogicalName, StringComparison.OrdinalIgnoreCase)
+                        && EntityPrivilegeRow.StandardRights.Contains(p.AccessRight))
+            .ToLookup(p => p.AccessRight);
+
+        PrivilegeCell Cell(Guid roleId, AccessRight right)
+        {
+            var candidates = privileges[right].ToList();
+            if (candidates.Count == 0)
+                return PrivilegeCell.NotApplicable;
+            var (definition, depth) = candidates
+                .Select(p => (Definition: p, Depth: index.DepthOf(roleId, p.Id)))
+                .MaxBy(x => x.Depth);
+            return new PrivilegeCell
+            {
+                Definition = definition,
+                PrivilegeName = definition.Name,
+                Depth = depth,
+                OriginalDepth = depth,
+                AllowedDepths = definition.AllowedDepthsText,
+            };
+        }
+
+        return index.Roles
+            .Select(role => new EntityRoleRow
+            {
+                RoleId = role.Id,
+                Name = role.Name,
+                BusinessUnitName = role.BusinessUnitName,
+                IsManaged = role.IsManaged,
+                IsInherited = role.IsInherited,
+                DirectUserCount = index.UsersWithDirectRole(role.Id).Distinct().Count(),
+                TeamCount = index.TeamsWithRole(role.Id).Distinct().Count(),
+                Create = Cell(role.Id, AccessRight.Create),
+                Read = Cell(role.Id, AccessRight.Read),
+                Write = Cell(role.Id, AccessRight.Write),
+                Delete = Cell(role.Id, AccessRight.Delete),
+                Append = Cell(role.Id, AccessRight.Append),
+                AppendTo = Cell(role.Id, AccessRight.AppendTo),
+                Assign = Cell(role.Id, AccessRight.Assign),
+                Share = Cell(role.Id, AccessRight.Share),
+            })
+            .OrderByDescending(r => r.GrantedCount)
+            .ThenByDescending(r => r.Cells.Sum(c => (int)c.Depth))
+            .ThenBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Dòng có đạt điều kiện lọc không: <paramref name="right"/> = None nghĩa là bất kỳ quyền nào
+    /// trong 8 quyền đạt mức tối thiểu.
+    /// </summary>
+    public static bool Matches(EntityRoleRow row, AccessRight right, PrivilegeDepth minimumDepth)
+    {
+        var min = minimumDepth == PrivilegeDepth.None ? PrivilegeDepth.User : minimumDepth;
+        return right == AccessRight.None
+            ? row.Cells.Any(c => c.Depth >= min)
+            : row.Get(right).Depth >= min;
+    }
+}

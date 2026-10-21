@@ -202,6 +202,25 @@ public sealed partial class MainViewModel
         ShowTool(new LookupWindow { DataContext = vm }, vm.LoadAsync);
     }
 
+    /// <summary>
+    /// Chiều entity của tra cứu ngược. Tham số tùy chọn: dòng ma trận quyền hoặc logical name
+    /// để chọn sẵn entity.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanUseTools))]
+    private void OpenEntityRoles(object? parameter)
+    {
+        var vm = new EntityRoleViewModel(this)
+        {
+            InitialEntity = parameter switch
+            {
+                EntityPrivilegeRow row => row.LogicalName,
+                string text => text,
+                _ => "",
+            },
+        };
+        ShowTool(new EntityRoleWindow { DataContext = vm }, vm.LoadAsync);
+    }
+
     [RelayCommand(CanExecute = nameof(CanUseTools))]
     private void OpenAccessReview()
     {
@@ -365,6 +384,100 @@ public sealed partial class MainViewModel
             return;
         }
         Process.Start(new ProcessStartInfo(ErrorLog.FilePath) { UseShellExecute = true });
+    }
+
+    #endregion
+
+    #region Cập nhật phiên bản
+
+    private bool _updating;
+
+    public string UpdateMenuHeader => $"⬆ Kiểm tra cập nhật (đang dùng {UpdateService.CurrentVersion.ToString(3)})";
+
+    [RelayCommand]
+    private Task CheckUpdatesNowAsync() => CheckForUpdatesAsync(manual: true);
+
+    /// <summary>
+    /// Kiểm tra bản mới; có thì hỏi rồi tải, kiểm tra, cài và mở lại ứng dụng.
+    /// Lần tự kiểm tra lúc mở app thì im lặng khi lỗi mạng hoặc đã kiểm tra gần đây.
+    /// </summary>
+    internal async Task CheckForUpdatesAsync(bool manual)
+    {
+        var settings = AppSettings.Current;
+        if (_updating || (!manual && (!settings.CheckForUpdates || DateTime.Now - settings.LastUpdateCheck < UpdateService.AutoCheckInterval)))
+            return;
+
+        _updating = true;
+        try
+        {
+            UpdateInfo? update;
+            try
+            {
+                if (manual)
+                    StatusText = "Đang kiểm tra phiên bản mới...";
+                update = await UpdateService.CheckAsync();
+                settings.LastUpdateCheck = DateTime.Now;
+                settings.Save();
+            }
+            catch (Exception ex)
+            {
+                ErrorLog.Write("Kiểm tra cập nhật", ex);
+                if (manual)
+                    Dialogs.ShowWarning("Không kiểm tra được phiên bản mới:\n\n" + Dialogs.Flatten(ex));
+                return;
+            }
+
+            var current = UpdateService.CurrentVersion.ToString(3);
+            if (update is null)
+            {
+                if (manual)
+                {
+                    StatusText = $"Đang dùng phiên bản mới nhất ({current}).";
+                    Dialogs.ShowInfo($"Bạn đang dùng phiên bản mới nhất ({current}).");
+                }
+                return;
+            }
+
+            var notes = update.Notes.Trim();
+            if (notes.Length > 1500)
+                notes = notes[..1500] + "…";
+            var header = $"Đã có phiên bản {update.Version.ToString(3)} (bạn đang dùng {current})."
+                         + (notes.Length > 0 ? $"\n\nThay đổi:\n{notes}" : "");
+
+            if (!UpdateService.CanSelfInstall)
+            {
+                if (Dialogs.Confirm(header + "\n\nBản đang chạy là bản portable nên không tự cài được. Mở trang tải về?"))
+                    Process.Start(new ProcessStartInfo(update.PageUrl) { UseShellExecute = true });
+                return;
+            }
+
+            if (!Dialogs.Confirm(header + "\n\nCập nhật ngay? Ứng dụng sẽ đóng, cài bản mới rồi tự mở lại."))
+                return;
+            if (IsEditingPrivileges && PendingChangeCount > 0
+                && !Dialogs.Confirm($"Đang có {PendingChangeCount} thay đổi privilege chưa lưu. Bỏ các thay đổi đó để cập nhật?"))
+                return;
+
+            string installer;
+            try
+            {
+                var progress = new Progress<int>(p => StatusText = $"Đang tải bản cập nhật {update.Version.ToString(3)}... {p}%");
+                installer = await UpdateService.DownloadAsync(update, progress);
+            }
+            catch (Exception ex)
+            {
+                StatusText = "Cập nhật thất bại.";
+                Dialogs.ShowError(ex, "Tải bản cập nhật");
+                return;
+            }
+
+            StatusText = "Đang cài bản cập nhật...";
+            UpdateService.StartInstaller(installer);
+            Application.Current.Shutdown();
+        }
+        finally
+        {
+            _updating = false;
+        }
     }
 
     #endregion

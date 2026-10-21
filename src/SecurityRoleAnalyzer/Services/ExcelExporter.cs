@@ -295,6 +295,26 @@ public static class ExcelExporter
         return sheet;
     }
 
+    public static IXLWorksheet AddEntityRoleSheet(XLWorkbook workbook, string name, IEnumerable<EntityRoleRow> rows)
+    {
+        var sheet = AddSheet(workbook, name, rows,
+            new ExportColumn<EntityRoleRow>("Role", r => r.Name, 40),
+            new ExportColumn<EntityRoleRow>("Create", r => r.Create.ExportText),
+            new ExportColumn<EntityRoleRow>("Read", r => r.Read.ExportText),
+            new ExportColumn<EntityRoleRow>("Write", r => r.Write.ExportText),
+            new ExportColumn<EntityRoleRow>("Delete", r => r.Delete.ExportText),
+            new ExportColumn<EntityRoleRow>("Append", r => r.Append.ExportText),
+            new ExportColumn<EntityRoleRow>("Append To", r => r.AppendTo.ExportText),
+            new ExportColumn<EntityRoleRow>("Assign", r => r.Assign.ExportText),
+            new ExportColumn<EntityRoleRow>("Share", r => r.Share.ExportText),
+            new ExportColumn<EntityRoleRow>("Phạm vi", r => r.InheritanceText),
+            new ExportColumn<EntityRoleRow>("User trực tiếp", r => r.DirectUserCount),
+            new ExportColumn<EntityRoleRow>("Team", r => r.TeamCount),
+            new ExportColumn<EntityRoleRow>("Managed", r => r.ManagedText));
+        ColorDepthCells(sheet);
+        return sheet;
+    }
+
     public static IXLWorksheet AddPrincipalSheet(XLWorkbook workbook, string name, IEnumerable<PrincipalAccessRow> rows) =>
         AddSheet(workbook, name, rows,
             new ExportColumn<PrincipalAccessRow>("Loại", r => r.Type),

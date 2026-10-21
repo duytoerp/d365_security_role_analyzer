@@ -1,6 +1,7 @@
 <Window x:Class="SecurityRoleAnalyzer.Views.ImportWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:s="clr-namespace:SecurityRoleAnalyzer.Services"
         xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -21,7 +22,7 @@
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                         <Button Content="📄 Tạo file mẫu" Command="{Binding CreateTemplateCommand}" />
                         <Button Content="📂 Mở file &amp; kiểm tra" Command="{Binding OpenFileCommand}" />
-                        <Button Content="▶ Thực hiện" Command="{Binding ExecuteCommand}" Style="{StaticResource PrimaryButton}" />
+                        <Button Content="▶ Thực hiện" Command="{Binding ExecuteCommand}" Style="{StaticResource PrimaryButton}" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
                         <Button Content="⬇ Xuất kết quả" Command="{Binding ExportResultsCommand}" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

@@ -1,6 +1,7 @@
 <UserControl x:Class="SecurityRoleAnalyzer.Views.UsersView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:s="clr-namespace:SecurityRoleAnalyzer.Services"
              xmlns:vm="clr-namespace:SecurityRoleAnalyzer.ViewModels"
              xmlns:m="clr-namespace:SecurityRoleAnalyzer.Models"
              xmlns:c="clr-namespace:SecurityRoleAnalyzer.Controls"
@@ -53,8 +54,8 @@
                 <DockPanel Visibility="{Binding HasAnalysis, Converter={StaticResource BoolToVisibility}}">
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                         <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Top" HorizontalAlignment="Right" MaxWidth="560">
-                            <Button Content="⇉ Sao chép quyền sang..." Command="{Binding CopyAccessToCommand}" Margin="4,0,0,4" />
-                            <Button Content="⇇ Lấy quyền từ user khác" Command="{Binding CopyAccessFromCommand}" Margin="4,0,0,4" />
+                            <Button Content="⇉ Sao chép quyền sang..." Command="{Binding CopyAccessToCommand}" Margin="4,0,0,4" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
+                            <Button Content="⇇ Lấy quyền từ user khác" Command="{Binding CopyAccessFromCommand}" Margin="4,0,0,4" Visibility="{x:Static s:AppEdition.WriteVisibility}" />
                             <Button Content="Mở trong D365" Command="{Binding OpenInBrowserCommand}" Margin="4,0,0,4" />
                             <Button Content="⟳ Phân tích lại" Command="{Binding ReloadCommand}" Margin="4,0,0,4" />
                             <Button Content="⬇ Xuất Excel" Command="{Binding ExportCommand}" Margin="4,0,0,4" />
@@ -82,7 +83,7 @@
                         <TabItem Header="{Binding RolesTabHeader}">
                             <DockPanel>
                                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{x:Static s:AppEdition.WriteVisibility}">
                                         <Button Content="＋ Gán role" Command="{Binding AddRolesCommand}" Style="{StaticResource PrimaryButton}" />
                                         <Button Content="Gỡ role đã chọn" Command="{Binding RemoveRolesCommand}" Style="{StaticResource DangerButton}" />
                                     </StackPanel>
@@ -114,7 +115,7 @@
                         <TabItem Header="{Binding TeamsTabHeader}">
                             <DockPanel>
                                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{x:Static s:AppEdition.WriteVisibility}">
                                         <Button Content="＋ Thêm vào team" Command="{Binding AddToTeamsCommand}" Style="{StaticResource PrimaryButton}" />
                                         <Button Content="Gỡ khỏi team đã chọn" Command="{Binding RemoveFromTeamsCommand}" Style="{StaticResource DangerButton}" />
                                     </StackPanel>

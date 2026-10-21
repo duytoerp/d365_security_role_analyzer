@@ -37,6 +37,9 @@ public sealed class AppSettings
     public string LastEnvironmentUrl { get; set; } = "";
     /// <summary>Tự kết nối lại môi trường đó khi mở ứng dụng.</summary>
     public bool ReconnectOnStartup { get; set; }
+    /// <summary>Tự kiểm tra bản mới trên GitHub khi mở ứng dụng (tối đa khoảng mỗi ngày một lần).</summary>
+    public bool CheckForUpdates { get; set; } = true;
+    public DateTime LastUpdateCheck { get; set; }
     public Dictionary<string, WindowPlacement> Windows { get; set; } = [];
 
     private static readonly JsonSerializerOptions Options = new()
@@ -108,8 +111,10 @@ public static class ErrorLog
             {
                 Directory.CreateDirectory(ConnectionProfileStore.AppDataFolder);
                 Rotate();
+                // Exception từ lúc kết nối có thể trích lại connection string; không để secret nằm trong file log.
                 File.AppendAllText(FilePath,
-                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {context}{Environment.NewLine}{detail}{Environment.NewLine}{Environment.NewLine}");
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ConnectionSecurity.Redact(context)}{Environment.NewLine}"
+                    + $"{ConnectionSecurity.Redact(detail)}{Environment.NewLine}{Environment.NewLine}");
             }
         }
         catch

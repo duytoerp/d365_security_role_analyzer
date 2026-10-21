@@ -32,7 +32,7 @@ public sealed partial class MainViewModel : IPrivilegeEditHost
     [RelayCommand(CanExecute = nameof(HasAnalysis))]
     private void ToggleEditPrivileges()
     {
-        if (Analysis is null)
+        if (Analysis is null || AppEdition.IsReadOnly)
             return;
 
         if (IsEditingPrivileges)

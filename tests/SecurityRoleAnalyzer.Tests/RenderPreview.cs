@@ -108,6 +108,69 @@ public class RenderPreview
         });
     }
 
+    [Fact]
+    public void Render_entity_role_window()
+    {
+        if (Environment.GetEnvironmentVariable("SRA_RENDER") != "1")
+            return;
+
+        XamlSmokeTests.RunSta(() =>
+        {
+            XamlSmokeTests.EnsureApp();
+            Theme.Apply(AppTheme.Light);
+
+            var (roles, _) = DemoData.Create();
+            var metadata = new Dictionary<string, EntityInfo>
+            {
+                ["account"] = new() { LogicalName = "account", DisplayName = "Account" },
+                ["contact"] = new() { LogicalName = "contact", DisplayName = "Contact" },
+                ["new_loan"] = new() { LogicalName = "new_loan", DisplayName = "Khoản vay", IsCustom = true },
+            };
+            var catalog = metadata.Keys
+                .SelectMany(e => EntityPrivilegeRow.StandardRights.Select(r => new PrivilegeDefinition
+                {
+                    Id = Guid.NewGuid(), Name = $"prv{r}{e}", AccessRight = r, EntityLogicalName = e,
+                    CanBeBasic = true, CanBeLocal = true, CanBeDeep = true, CanBeGlobal = true,
+                }))
+                .ToList();
+            var index = new AccessIndex { Roles = roles };
+            PrivilegeDepth[] depths = [PrivilegeDepth.None, PrivilegeDepth.User, PrivilegeDepth.BusinessUnit, PrivilegeDepth.ParentChild, PrivilegeDepth.Organization];
+            var random = new Random(3);
+            foreach (var role in roles.Skip(1))
+                index.RolePrivileges[role.Id] = catalog.ToDictionary(p => p.Id, _ => depths[random.Next(depths.Length)]);
+            index.UserRoles.Add((Guid.NewGuid(), roles[1].Id));
+            index.TeamRoles.Add((Guid.NewGuid(), roles[3].Id));
+
+            var vm = new EntityRoleViewModel(new MainViewModel());
+            vm.LoadDemo(index, catalog, metadata, "account");
+
+            var window = new EntityRoleWindow
+            {
+                DataContext = vm,
+                Width = 1500,
+                Height = 640,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -4000,
+                Top = -4000,
+                ShowInTaskbar = false,
+            };
+            window.Show();
+            Pump();
+
+            var bitmap = new RenderTargetBitmap(1500, 640, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(window);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+
+            var path = Path.Combine(OutputFolder, "entity_roles.png");
+            using (var stream = File.Create(path))
+                encoder.Save(stream);
+
+            window.Close();
+            Assert.True(File.Exists(path));
+        });
+    }
+
     private static RoleDirectory SampleDirectory()
     {
         var sales = new Guid("11111111-1111-1111-1111-111111111111");

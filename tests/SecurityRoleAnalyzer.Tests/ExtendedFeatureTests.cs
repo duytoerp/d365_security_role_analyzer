@@ -341,6 +341,7 @@ public class XamlSmokeTests
             var windows = new List<Window>
             {
                 new LookupWindow { DataContext = new LookupViewModel(main) },
+                new EntityRoleWindow { DataContext = new EntityRoleViewModel(main) },
                 new AccessReviewWindow { DataContext = new AccessReviewViewModel(main) },
                 new BulkPrivilegeWindow { DataContext = new BulkPrivilegeViewModel(main) },
                 new SnapshotWindow { DataContext = new SnapshotViewModel(main) },

@@ -112,6 +112,13 @@ public static class CommandLineRunner
     /// <summary>Lấy thông tin kết nối từ tham số, hoặc từ hồ sơ đã lưu nếu chỉ truyền --profile/--url.</summary>
     private static string BuildConnectionString(Dictionary<string, string> options)
     {
+        // Tham số dòng lệnh lộ ra ở danh sách tiến trình, lịch sử shell và định nghĩa Task Scheduler.
+        if (options.ContainsKey("--client-secret") || options.ContainsKey("--connection-string"))
+        {
+            Console.Error.WriteLine("Cảnh báo: secret truyền qua tham số dòng lệnh có thể bị người khác đọc được. "
+                                    + "Nên dùng biến môi trường SRA_CLIENT_SECRET hoặc --profile với secret đã lưu (mã hóa DPAPI).");
+        }
+
         if (options.TryGetValue("--connection-string", out var raw))
             return raw;
 

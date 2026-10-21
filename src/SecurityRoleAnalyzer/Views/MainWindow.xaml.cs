@@ -10,6 +10,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         WindowMemory.Attach(this);
+        if (AppEdition.IsReadOnly)
+            Title += " – " + AppEdition.DisplayName;
 
         var vm = (MainViewModel)DataContext;
         // Ctrl+F: ô tìm kiếm nằm trong view của chế độ đang mở, nên phải tìm trong cây trực quan.
@@ -20,6 +22,15 @@ public partial class MainWindow : Window
 
         if (Environment.GetCommandLineArgs().Contains("--demo", StringComparer.OrdinalIgnoreCase))
             vm.LoadDemo();
+        else if (Application.Current is App)
+        {
+            // Chờ giao diện mở xong rồi mới kiểm tra, để không làm chậm lúc khởi động. Bỏ qua khi chạy trong test.
+            Loaded += async (_, _) =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(3));
+                await vm.CheckForUpdatesAsync(manual: false);
+            };
+        }
     }
 
     // Mở menu Công cụ ngay dưới nút; ContextMenu không kế thừa DataContext nên gán thủ công.

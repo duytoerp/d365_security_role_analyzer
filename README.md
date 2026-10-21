@@ -23,6 +23,7 @@ Double-click để điều hướng chéo: role ↔ team ↔ user ↔ app ↔ BU
 | ❓ **Vì sao user không thấy bản ghi này?** | Dán URL bản ghi + chọn user → quyền hiệu lực **hỏi trực tiếp Dataverse**, kèm lý do: chủ sở hữu, Business Unit, role nào cấp mức nào, **chia sẻ bản ghi**, **hierarchy security** |
 | 🧾 **Form này đang mở cho role nào?** | Chiều ngược của tab Components: mỗi form/dashboard kèm danh sách security role được gán (đọc node `DisplayConditions` trong `systemform.formxml`), lọc được theo role, theo entity, theo kiểu phân quyền; chỉ ra form đang để *Everyone* và form chưa chọn role nào. **Thêm / gỡ role hoặc chuyển form sang Everyone** ngay trên panel bên phải – ghi `formxml` rồi publish, đọc lại cấu hình mới nhất trước khi ghi, sao lưu `formxml` gốc vào `Backups\<môi trường>\Forms\`, ghi lịch sử (role thêm/gỡ, trạng thái trước → sau, người thực hiện) và hiện **lịch sử thay đổi của riêng form đó** ngay trên panel; hoàn tác được |
 | 🔎 **Tra cứu ngược** | Chọn privilege + mức tối thiểu → role, team và toàn bộ user có quyền (kèm nguồn) |
+| 🗂 **Entity này có trong role nào?** | Chọn entity → mọi role đang có quyền trên entity đó, kèm mức Create/Read/Write/Delete/Append/Append To/Assign/Share của từng role; lọc theo quyền + mức tối thiểu, ẩn role managed, xuất Excel. Mở nhanh bằng chuột phải lên một dòng của ma trận quyền entity |
 | 📋 **Rà soát quyền** | Toàn bộ user & role, cờ cảnh báo, role không dùng; xuất Excel kèm **ma trận User × Role** |
 | ⇄ **So sánh 2 role** | Khác biệt từng privilege |
 | ⧉ **Tìm role trùng lặp** | So tập privilege của mọi role, phát hiện role giống hệt hoặc chứa trọn nhau, kèm gợi ý gộp |
@@ -77,6 +78,52 @@ dotnet run --project src/SecurityRoleAnalyzer -- --demo  # xem giao diện với
 dotnet test                                              # unit test + UI smoke test
 dotnet publish src/SecurityRoleAnalyzer -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish
 ```
+
+### Build bộ cài cho user
+
+Cần [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`).
+
+```powershell
+.\installer\build-installer.ps1                   # chạy test → publish → đóng gói cả 2 edition
+.\installer\build-installer.ps1 -Edition Viewer   # chỉ build bản Viewer
+.\installer\build-installer.ps1 -SkipTests
+```
+
+Có hai edition, cài song song được trên cùng máy:
+
+| Edition | Dành cho | File trong `dist\` |
+|---|---|---|
+| **Full** | Admin – đầy đủ chức năng | `SecurityRoleAnalyzer-Setup-<version>.exe`, `SecurityRoleAnalyzer-<version>-portable.zip` |
+| **Viewer** | User – chỉ xem, phân tích, xuất Excel | `SecurityRoleAnalyzer-Viewer-Setup-<version>.exe`, `SecurityRoleAnalyzer-Viewer-<version>-portable.zip` |
+
+Bản Viewer được build với `-p:Edition=Viewer` (hằng số `VIEWER`), khóa cứng lúc biên dịch nên user không tự mở khóa được: ẩn mọi nút gán/gỡ role, sửa privilege, tạo/sao chép/đổi tên/xóa role, team member, app, field profile, áp quyền hàng loạt, import, khôi phục sao lưu, áp snapshot, hoàn tác; đồng thời `DataverseService` từ chối mọi thao tác ghi (`ReadOnlyEditionException`). Tiêu đề cửa sổ có chữ "Viewer (chỉ xem)".
+
+Bộ cài mặc định cài cho user hiện tại, không cần quyền admin; đã kèm .NET runtime nên máy user không cần cài .NET. Phiên bản lấy từ `<Version>` trong csproj.
+
+#### Ký số và cảnh báo SmartScreen
+
+File chưa ký sẽ bị SmartScreen chặn ("Windows protected your PC") khi tải qua email, Teams hoặc trình duyệt. Script ký exe của app và bộ cài (SHA256 + timestamp) khi có chứng chỉ:
+
+```powershell
+.\installer\build-installer.ps1 -CertThumbprint <SHA1>        # chứng chỉ trong kho Windows / USB token
+$env:SRA_PFX_PASSWORD = '...'; .\installer\build-installer.ps1 -PfxPath C:\certs\codesign.pfx
+```
+
+Lưu ý: chữ ký thay "Unknown publisher" bằng tên công ty, nhưng SmartScreen vẫn có thể cảnh báo cho tới khi file có đủ "uy tín" (chứng chỉ EV không còn được miễn từ 2024). Với công cụ nội bộ, cách chắc chắn là phát hành qua kênh không gắn dấu "tải từ Internet": thư mục chia sẻ trong mạng công ty, hoặc IT đẩy cài qua Intune / SCCM / GPO.
+
+#### Tự cập nhật phiên bản
+
+Ứng dụng tự kiểm tra GitHub Releases của repo này khi mở (tối đa khoảng mỗi ngày một lần), hoặc khi bấm **Công cụ → Kiểm tra cập nhật**. Có bản mới thì hỏi user, đồng ý là tự tải, kiểm tra, cài và mở lại. Bản portable chỉ mở trang tải.
+
+Phát hành một phiên bản mới:
+
+```powershell
+.\installer\build-installer.ps1 -Bump Patch            # 3.0.1 → 3.0.2, chạy test, build cả 2 edition + SHA256SUMS.txt
+$env:GITHUB_TOKEN = '<fine-grained token, quyền Contents: Read and write cho repo>'
+.\installer\publish-release.ps1 -Notes "Nội dung thay đổi user sẽ thấy"
+```
+
+Bộ cài chỉ được chạy khi: tải qua https từ đúng repo `duytoerp/d365_security_role_analyzer`; đúng edition (bản Viewer chỉ nhận `SecurityRoleAnalyzer-Viewer-Setup-*.exe`, không bao giờ nhận bản Full); phiên bản lớn hơn bản đang chạy (bỏ qua prerelease/draft); khớp SHA256 (digest của GitHub hoặc `SHA256SUMS.txt`); và nếu bản đang chạy đã ký số thì bộ cài phải được ký hợp lệ bởi cùng nhà phát hành. Lưu ý: repo công khai nên ai cũng tải được các bộ cài trên Releases.
 
 ### Chế độ dòng lệnh (báo cáo định kỳ)
 

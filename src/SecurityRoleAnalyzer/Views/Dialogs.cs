@@ -14,10 +14,11 @@ public static class Dialogs
     public static void ShowError(Exception ex, string context = "")
     {
         ErrorLog.Write(string.IsNullOrEmpty(context) ? "Lỗi" : context, ex);
-        ErrorWindow.Show(Owner, Flatten(ex), ex.ToString());
+        // Chi tiết lỗi có nút sao chép, người dùng hay dán vào chat/ticket, nên phải che secret.
+        ErrorWindow.Show(Owner, Flatten(ex), ConnectionSecurity.Redact(ex.ToString()));
     }
 
-    /// <summary>Gộp message của exception và các inner exception, bỏ phần trùng lặp.</summary>
+    /// <summary>Gộp message của exception và các inner exception, bỏ phần trùng lặp; đã che secret.</summary>
     public static string Flatten(Exception ex)
     {
         var message = ex.Message;
@@ -26,10 +27,12 @@ public static class Dialogs
             if (!message.Contains(inner.Message, StringComparison.Ordinal))
                 message += Environment.NewLine + Environment.NewLine + inner.Message;
         }
-        return message;
+        return ConnectionSecurity.Redact(message);
     }
 
     public static void ShowWarning(string message) => Show(message, MessageBoxImage.Warning);
+
+    public static void ShowInfo(string message) => Show(message, MessageBoxImage.Information);
 
     /// <summary>
     /// Đặt nội dung vào clipboard. Clipboard Windows hay bị tiến trình khác giữ nên thử lại vài lần;

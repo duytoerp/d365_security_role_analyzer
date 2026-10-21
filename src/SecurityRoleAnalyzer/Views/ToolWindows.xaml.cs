@@ -14,6 +14,15 @@ public partial class LookupWindow : Window
     }
 }
 
+public partial class EntityRoleWindow : Window
+{
+    public EntityRoleWindow()
+    {
+        InitializeComponent();
+        WindowMemory.Attach(this);
+    }
+}
+
 public partial class AccessReviewWindow : Window
 {
     public AccessReviewWindow()
